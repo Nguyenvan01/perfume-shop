@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# build output
+dist/
+build/
+
+# uploads (local storage driver — OD-5)
+backend/uploads/
+
+# logs
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+.idea/
+
+# test coverage
+coverage/
+
+# tài liệu/báo cáo rời, không thuộc source code
+*.docx
+.tmp_report/
