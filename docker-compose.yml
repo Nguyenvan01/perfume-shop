@@ -1,0 +1,26 @@
+# MySQL cho môi trường dev (OD-4).
+# Port 3307 để không đụng MySQL cài sẵn trên máy (3306).
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: perfume-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: perfume_shop
+      MYSQL_USER: perfume
+      MYSQL_PASSWORD: perfume
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/prisma/docker-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql_data:
