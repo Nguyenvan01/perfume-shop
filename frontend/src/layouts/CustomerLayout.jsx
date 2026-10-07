@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
+import { useCart } from '../features/cart/useCart';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -22,8 +23,7 @@ export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // W5 sẽ thay bằng số lượng thật từ useCart(); W1 giữ 0 để không hiển thị số giả.
-  const cartItemCount = 0;
+  const { itemCount: cartItemCount, hasWarnings } = useCart();
 
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: <Link to="/profile">Hồ sơ của tôi</Link> },
@@ -67,7 +67,8 @@ export default function CustomerLayout() {
           />
 
           <Link to="/cart">
-            <Badge count={cartItemCount} size="small">
+            {/* Dấu chấm đỏ khi giỏ có sản phẩm hết hàng / vượt tồn kho. */}
+            <Badge count={cartItemCount} size="small" dot={hasWarnings && cartItemCount === 0}>
               <Button type="text" icon={<ShoppingCartOutlined style={{ fontSize: 18 }} />} />
             </Badge>
           </Link>

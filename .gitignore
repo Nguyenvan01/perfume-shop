@@ -27,3 +27,24 @@ coverage/
 # tài liệu/báo cáo rời, không thuộc source code
 *.docx
 .tmp_report/
+
+# ─────────────────────────────────────────────────────────────
+# Dự án học song song — KHÔNG thuộc perfume shop, không publish.
+# (Quyết định của bạn khi tạo repo: chỉ đẩy code perfume shop)
+# ─────────────────────────────────────────────────────────────
+/.agents/
+/.claude/
+/.vscode/
+/AGENTS.md
+/GLOSSARY.md
+/MISSION.md
+/NOTES.md
+/RESOURCES.md
+/package-lock.json
+/skills-lock.json
+/skills/
+/lessons/
+/orca/
+/learning-records/
+/docs/inventory-requirements.md
+/docs/wayfinder-erp-map.md

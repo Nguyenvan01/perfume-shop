@@ -169,40 +169,43 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W5 — M7 Cart & Order (MVP core)
-*Dependency: W4a + W4b ✅ — sẵn sàng start*
+## W5 — M7 Cart & Order (MVP core) ✅
+*Dependency: W4 ✅ · Hoàn thành 2026-10-07 · MVP flow chạy end-to-end · 224 BE test + 58 FE test*
 
 ### Backend — Codex
-- [ ] **X** module `carts`: `GET /cart` (auto-create), add item (cộng dồn, check stock → 422 **TC04**), update quantity, remove item, clear, `POST /cart/preview` (subtotal/discount/shipping/total + warnings nếu stock đổi)
-- [ ] **X** `order.constant.js` — transition map theo plan §2.12
-- [ ] **X** `order.service.createOrder` — 1 `$transaction`: validate cart không rỗng → re-check stock (**TC05**) → sinh `order_code` → tạo order + order_details **snapshot** → trừ stock + ghi `SALE` `reference=ORDER:<id>` (**TC07**) → tạo `payments` UNPAID → promotion `used_count++` + `promotion_usages` (nếu có) → clear cart
-- [ ] **X** `GET /orders/my`, `GET /orders/:id` (ownership check → 403)
-- [ ] **X** `PATCH /orders/:id/cancel` — customer chỉ `PENDING`, admin/staff `PENDING|CONFIRMED`; hoàn kho + ghi `RETURN`; rollback promotion
-- [ ] **X** `GET /orders` (admin filter/search/date range), `PATCH /orders/:id/status` enforce transition (**TC08**), `PATCH /orders/:id/return` (chỉ từ COMPLETED, hoàn kho), `PATCH /orders/:id/payment`, `GET /orders/:id/invoice`
-- [ ] **X** Khi `COMPLETED`: set `completed_at`, cập nhật `customers.total_orders` + `total_spending`
-- [ ] **X** Tests: **TC04, TC05, TC06, TC07, TC08** + cancel hoàn kho đúng + ownership 403 + concurrent checkout 2 request cùng variant stock 1 → chỉ 1 thành công
+- [x] **X** module `carts`: `GET /cart` (auto-create), add item (cộng dồn, check stock → 422 **TC04**), update quantity, remove item, clear, `POST /cart/preview` (subtotal/discount/shipping/total + warnings nếu stock đổi)
+- [x] **X** `order.constant.js` — transition map theo plan §2.12
+- [x] **X** `order.service.createOrder` — 1 `$transaction`: validate cart không rỗng → re-check stock (**TC05**) → sinh `order_code` → tạo order + order_details **snapshot** → trừ stock + ghi `SALE` `reference=ORDER:<id>` (**TC07**) → tạo `payments` UNPAID → promotion `used_count++` + `promotion_usages` (nếu có) → clear cart
+- [x] **X** `GET /orders/my`, `GET /orders/:id` (ownership check → 403)
+- [x] **X** `PATCH /orders/:id/cancel` — customer chỉ `PENDING`, admin/staff `PENDING|CONFIRMED`; hoàn kho + ghi `RETURN`; rollback promotion
+- [x] **X** `GET /orders` (admin filter/search/date range), `PATCH /orders/:id/status` enforce transition (**TC08**), `PATCH /orders/:id/return` (chỉ từ COMPLETED, hoàn kho), `PATCH /orders/:id/payment`, `GET /orders/:id/invoice`
+- [x] **X** Khi `COMPLETED`: set `completed_at`, cập nhật `customers.total_orders` + `total_spending`
+- [x] **X** Tests: **TC04, TC05, TC06, TC07, TC08** + cancel hoàn kho đúng + ownership 403 + concurrent checkout 2 request cùng variant stock 1 → chỉ 1 thành công
 
 ### Frontend — Claude
-- [ ] **C** Cart page: list item (ảnh, tên, volume, SKU, đơn giá, quantity stepper giới hạn stock), remove (confirm), clear, summary (subtotal/discount/shipping/total), cảnh báo item hết hàng
-- [ ] **C** Cart badge ở header (TanStack Query, invalidate sau mutate)
-- [ ] **C** Checkout page: form người nhận (prefill từ profile), note, chọn payment method, ô voucher (gọi `/cart/preview`), order summary, submit → redirect order detail + success notification
-- [ ] **C** Customer Order history: filter status, pagination, status tag màu
-- [ ] **C** Customer Order detail: timeline status, chi tiết item (giá snapshot), tổng tiền, nút Cancel (chỉ `PENDING`, confirm + lý do)
-- [ ] **C** Admin Order list: search order_code/phone, filter status + date range, pagination
-- [ ] **C** Admin Order detail: thông tin khách/giao hàng, item, tổng tiền, stepper status, nút Confirm / Next status / Cancel / Return / Mark paid — **chỉ hiện action hợp lệ theo transition map**
-- [ ] **C** In hoá đơn (print view từ `/invoice`)
-- [ ] **C** Vitest: cart quantity > stock chặn ở UI; action buttons theo transition map
+- [x] **C** Cart page: list item (ảnh, tên, volume, SKU, đơn giá, quantity stepper giới hạn stock), remove (confirm), clear, summary (subtotal/discount/shipping/total), cảnh báo item hết hàng
+- [x] **C** Cart badge ở header (TanStack Query, invalidate sau mutate)
+- [x] **C** Checkout page: form người nhận (prefill từ profile), note, chọn payment method, ô voucher (gọi `/cart/preview`), order summary, submit → redirect order detail + success notification
+- [x] **C** Customer Order history: filter status, pagination, status tag màu
+- [x] **C** Customer Order detail: timeline status, chi tiết item (giá snapshot), tổng tiền, nút Cancel (chỉ `PENDING`, confirm + lý do)
+- [x] **C** Admin Order list: search order_code/phone, filter status + date range, pagination
+- [x] **C** Admin Order detail: thông tin khách/giao hàng, item, tổng tiền, stepper status, nút Confirm / Next status / Cancel / Return / Mark paid — **chỉ hiện action hợp lệ theo transition map**
+- [x] **C** In hoá đơn (print view từ `/invoice`)
+- [x] **C** Vitest: cart quantity > stock chặn ở UI; action buttons theo transition map
 
 ### Gate W5 — MVP acceptance (Claude)
-- [ ] **C** TC04–TC08 pass trên BE test
-- [ ] **C** Chạy tay full flow CLAUDE.md §9 trên UI: admin login → brand → category → product → variants → import → customer register → browse → cart → checkout → admin confirm → PACKING → SHIPPING → COMPLETED
-- [ ] **C** Verify DB sau flow: stock giảm đúng, có txn `SALE`, `order_details` giữ giá snapshot (đổi giá variant rồi xem lại đơn cũ → giá không đổi), `customers.total_spending` đúng
-- [ ] **C** Ghi `docs/test-report.md`
+- [x] **C** TC04–TC08 pass trên BE test
+- [x] **C** Chạy tay full flow CLAUDE.md §9 trên UI: admin login → brand → category → product → variants → import → customer register → browse → cart → checkout → admin confirm → PACKING → SHIPPING → COMPLETED
+- [x] **C** Verify DB sau flow: stock giảm đúng, có txn `SALE`, `order_details` giữ giá snapshot (đổi giá variant rồi xem lại đơn cũ → giá không đổi), `customers.total_spending` đúng
+- [x] **C** Ghi `docs/test-report.md`
 
 ---
 
 ## W6 — M8 Promotion + M9 Dashboard/Report
-*Dependency: W5*
+*Dependency: W5 ✅ — sẵn sàng start*
+
+> W5 đã làm trước phần **validate + apply** khuyến mãi (checkout cần theo contract).
+> W6 chỉ còn CRUD khuyến mãi cho admin + toàn bộ dashboard/report.
 
 ### Backend — Codex
 - [ ] **X** module `promotions` — CRUD (validate `end_date > start_date`, PERCENTAGE 1–100, FIXED > 0), status toggle, chặn xoá khi đã dùng

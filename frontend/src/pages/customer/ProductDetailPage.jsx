@@ -17,20 +17,23 @@ import {
   Typography,
 } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { productsApi } from '../../api/catalog';
 import { QueryBoundary } from '../../components';
 import { formatCurrency, formatLabel, formatNumber } from '../../utils/format';
 import { GENDER_LABEL, CONCENTRATION_LABEL } from '../../utils/constants';
 import { resolveImageUrl } from '../../utils/imageUrl';
 import { useAuth } from '../../features/auth/AuthContext';
+import { useCart } from '../../features/cart/useCart';
 
 const { Title, Text, Paragraph } = Typography;
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isCustomer } = useAuth();
   const { notification } = App.useApp();
+  const { addItem } = useCart();
+  const navigate = useNavigate();
 
   const productQuery = useQuery({
     queryKey: ['products', 'detail', slug],
@@ -43,14 +46,24 @@ export default function ProductDetailPage() {
         <ProductDetailContent
           product={product}
           isAuthenticated={isAuthenticated}
+          isCustomer={isCustomer}
           notification={notification}
+          addItem={addItem}
+          navigate={navigate}
         />
       )}
     </QueryBoundary>
   );
 }
 
-function ProductDetailContent({ product, isAuthenticated, notification }) {
+function ProductDetailContent({
+  product,
+  isAuthenticated,
+  isCustomer,
+  notification,
+  addItem,
+  navigate,
+}) {
   // useMemo: nếu không, mỗi render tạo array mới làm useEffect dưới chạy lại vô ích.
   const variants = useMemo(() => product.variants ?? [], [product.variants]);
 
@@ -75,12 +88,17 @@ function ProductDetailContent({ product, isAuthenticated, notification }) {
   const hasDiscount = selected?.sale_price != null;
   const outOfStock = !selected || selected.stock_quantity === 0;
 
-  // Giỏ hàng được triển khai ở M7 — nút đã có nhưng chưa gọi API thật.
   const handleAddToCart = () => {
-    notification.info({
-      message: 'Giỏ hàng sẽ hoạt động ở bước tiếp theo',
-      description: 'Chức năng giỏ hàng và đặt hàng thuộc M7 — Cart & Order.',
-    });
+    if (!isAuthenticated) {
+      // Giữ lại trang hiện tại để sau khi đăng nhập quay về đúng sản phẩm.
+      navigate('/login', { state: { from: `/products/${product.slug}` } });
+      return;
+    }
+    if (!isCustomer) {
+      notification.warning({ message: 'Chỉ tài khoản khách hàng mới mua được hàng' });
+      return;
+    }
+    addItem.mutate({ variantId: selected.id, quantity });
   };
 
   return (
@@ -223,6 +241,7 @@ function ProductDetailContent({ product, isAuthenticated, notification }) {
                 size="large"
                 icon={<ShoppingCartOutlined />}
                 disabled={outOfStock}
+                loading={addItem.isPending}
                 onClick={handleAddToCart}
               >
                 {outOfStock ? 'Hết hàng' : 'Thêm vào giỏ'}
@@ -231,6 +250,11 @@ function ProductDetailContent({ product, isAuthenticated, notification }) {
                 <Text type="secondary">
                   <Link to="/login">Đăng nhập</Link> để mua hàng
                 </Text>
+              )}
+              {isCustomer && (
+                <Link to="/cart">
+                  <Button size="large">Xem giỏ hàng</Button>
+                </Link>
               )}
             </Flex>
 

@@ -19,6 +19,10 @@ function mapPrismaError(error) {
           : error.meta?.target || 'field';
         return AppError.conflict(`Duplicate value for ${target}`);
       }
+      case 'P2000':
+        return AppError.badRequest(
+          `Value too long for column ${error.meta?.column_name ?? 'unknown'}`
+        );
       case 'P2003':
         return AppError.conflict('Related record constraint failed');
       case 'P2025':
@@ -51,7 +55,8 @@ function errorHandler(error, req, res, next) {
 
   if (!appError) {
     // Lỗi không lường trước: log full stack, nhưng không rò rỉ chi tiết ra client.
-    if (!env.isTest) {
+    // Test im lặng theo mặc định; đặt LOG_ERRORS=1 để soi lỗi khi debug test.
+    if (!env.isTest || process.env.LOG_ERRORS) {
       // eslint-disable-next-line no-console
       console.error('[unhandled]', error);
     }
