@@ -1,14 +1,29 @@
 # Test Report — Perfume Shop Management System
 
-Cập nhật: 2026-10-07 · sau Wave 6 (Promotion + Dashboard/Report)
+Cập nhật: 2026-10-07 · sau Wave 7 (Review + Hardening + Docs) — **wave cuối**
 
 ## 1. Tổng quan
 
 | Lớp | Công cụ | Số test | Kết quả |
 |---|---|---|---|
-| Backend unit + integration | Jest + Supertest (DB `perfume_shop_test`) | 288 | ✅ pass |
-| Frontend unit + component | Vitest + React Testing Library | 82 | ✅ pass |
-| **Tổng** | | **370** | ✅ pass |
+| Backend unit + integration | Jest + Supertest (DB `perfume_shop_test`) | 374 | ✅ pass |
+| Frontend unit + component | Vitest + React Testing Library | 95 | ✅ pass |
+| **Tổng** | | **469** | ✅ pass |
+
+### Coverage backend
+
+| Phạm vi | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| Toàn bộ `src/` | 90,8% | 71,3% | 90,4% | 93,2% |
+| Module nghiệp vụ lõi (order, inventory, cart, promotion) | **96,6%** | **86,7%** | **100%** | **99,7%** |
+| `order.constant.js` — bảng chuyển trạng thái | **100%** | **100%** | **100%** | **100%** |
+
+Mục tiêu ban đầu là 100% branch cho `order.service` và `inventory.service`. **Chưa đạt:**
+`order.service` 84,3% branch, `inventory.service` 78,1% branch (cả hai đạt 100% lines và
+100% functions). Phần chưa chạm là các nhánh phòng thủ kiểu `?? null` / `? :` cho quan hệ
+tùy chọn — chỉ xảy ra khi đọc dữ liệu thiếu `include`. Tôi chọn **không** viết test giả để
+đẩy con số lên 100%, và thay vào đó phủ 100% branch cho `order.constant.js` — nơi chứa
+bảng chuyển trạng thái, phần nghiệp vụ dễ sai và đắt nhất nếu sai.
 
 Lint: `backend: eslint src prisma tests` và `frontend: eslint src` đều sạch.
 Build: `frontend: vite build` thành công.
@@ -95,6 +110,8 @@ Sau nhánh hủy: **0 variant lệch**.
 | W4 | `createBulkMovement` đọc "N giao dịch mới nhất của toàn bảng" sau commit | Request đồng thời trả về giao dịch của người khác |
 | W5 | Mã đơn tạm `TMP-{uuid}` dài 40 ký tự > `VarChar(32)` | Mọi lần checkout trả 500 |
 | W6 | — (không có bug code; 2 lỗi nằm ở chính test: payload `name` quá ngắn và sai số học `bandCenter`) | |
+| W7 | Body vượt giới hạn trả **500** thay vì 413 (`entity.too.large` không được map) | Lỗi của client bị ghi log như lỗi hệ thống, và client nhận sai mã lỗi |
+| W7 | Log lỗi kết nối DB in cả connection string **kèm mật khẩu** | Mật khẩu DB lọt vào log của nền tảng hosting |
 
 ## 7. Báo cáo & Dashboard (W6)
 
@@ -133,8 +150,48 @@ thang đo tách ra `scale.js` và có 24 test — đây là chỗ biểu đồ t
 chuột ra ngoài vùng vẽ). Màu chuỗi dữ liệu đã chạy qua validator màu: đạt cả 5 kiểm
 tra trên đúng surface `#ffffff` của app.
 
-## 8. Chưa kiểm thử (ghi nhận để làm tiếp)
+## 8. Review & Hardening (W7)
+
+### Đánh giá sản phẩm — xác thực đã mua
+
+| Tình huống | Kỳ vọng | Kết quả |
+|---|---|---|
+| Chưa mua sản phẩm | 403 | ✅ `You must purchase and receive this product...` |
+| Đã mua nhưng đơn chưa `COMPLETED` | 403 | ✅ |
+| Đơn đã `COMPLETED` | 201, lưu kèm `order_id` làm bằng chứng | ✅ |
+| Đánh giá lần 2 cùng sản phẩm | 409 | ✅ (chặn ở cả tầng DB bằng unique `(product_id, customer_id)`) |
+| Đánh giá bị ẩn | Không hiện cho khách, **không tính** vào điểm trung bình | ✅ 4 review → ẩn 1 → điểm từ 4,0 lên 4,67 |
+| Review công khai | Chỉ lộ tên khách, **không lộ email** | ✅ |
+| Khách sửa review đã bị ẩn | 409 (không lách kiểm duyệt) | ✅ |
+| STAFF ẩn/xóa review | 403 (chỉ ADMIN) | ✅ |
+
+`eligibility` trả `can_review` + `reason` + `my_review` nên trang sản phẩm hiện đúng form
+hoặc đúng lý do, khách không phải thử rồi nhận lỗi.
+
+### Hardening
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Origin lạ gọi API | **403**, không trả header CORS |
+| Body 400KB | **413** `Request body is too large` (trước khi sửa là 500) |
+| Không token vào endpoint cần quyền | **401** |
+| Header `X-Content-Type-Options` | `nosniff` |
+| Header `Referrer-Policy` | `no-referrer` |
+| Header `X-Powered-By` | **đã tắt** |
+| JSON sai cú pháp | 400, không 500 |
+| `password_hash` / `token_hash` trong response | **không có ở bất kỳ endpoint nào** |
+| Log có chứa mật khẩu | **không** — lỗi kết nối DB được che `mysql://user:***@host` |
+| Rate limit | 300 req/phút toàn API; 60 req/phút cho method ghi; 10 req/5 phút cho login |
+
+20 test trong `tests/integration/security.test.js` kiểm chứng các mục trên.
+
+### Dọn code chết
+
+`inventory.service.variantDetail` và `inventory.repository.findVariantById` được export
+nhưng không route hay module nào gọi — đã xóa thay vì viết test cho code không chạm tới được.
+
+## 9. Chưa kiểm thử (ghi nhận để làm tiếp)
 
 - UI test end-to-end bằng trình duyệt (Playwright/Cypress) — hiện chỉ test component bằng RTL.
-- Review (W7).
+
 - Tải đồng thời ở quy mô lớn (hiện chỉ test 2 request song song).

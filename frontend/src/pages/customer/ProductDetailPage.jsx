@@ -25,6 +25,7 @@ import { GENDER_LABEL, CONCENTRATION_LABEL } from '../../utils/constants';
 import { resolveImageUrl } from '../../utils/imageUrl';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useCart } from '../../features/cart/useCart';
+import ProductReviews from '../../features/reviews/components/ProductReviews';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -296,6 +297,8 @@ function ProductDetailContent({
           ]}
         />
       </Card>
+
+      <ProductReviews productId={product.id} />
     </>
   );
 }

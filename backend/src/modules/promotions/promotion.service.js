@@ -63,6 +63,16 @@ function assertUsable(promotion, { subtotal, customerUsageCount, now = new Date(
   }
 }
 
+/**
+ * Dùng cho endpoint khách kiểm tra mã: tra hồ sơ khách từ userId rồi validate.
+ * Controller không được tự query DB (CLAUDE.md §3) nên bước tra customer nằm ở đây.
+ */
+async function validateForUser({ code, subtotal, userId }) {
+  const customer = await repo.findCustomerByUserId(userId);
+  if (!customer) throw AppError.forbidden('Only customer accounts can use promotion codes');
+  return validateForCustomer({ code, subtotal, customerId: customer.id });
+}
+
 /** Dùng cho /cart/preview và /promotions/validate — chỉ đọc, không ghi. */
 async function validateForCustomer({ code, subtotal, customerId }) {
   const promotion = await repo.findByCode(code);
@@ -233,6 +243,7 @@ module.exports = {
   calculateDiscount,
   assertUsable,
   validateForCustomer,
+  validateForUser,
   claimForOrder,
   releaseForOrder,
   recordUsage,

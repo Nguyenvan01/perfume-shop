@@ -161,25 +161,11 @@ const findTransactionsByIds = (ids) =>
     include: TXN_INCLUDE,
   });
 
-const findVariantById = (id) =>
-  prisma.productVariant.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      sku: true,
-      volume_ml: true,
-      stock_quantity: true,
-      status: true,
-      product: { select: { id: true, name: true } },
-    },
-  });
-
 module.exports = {
   lockVariantForUpdate,
   applyStock,
   createTransaction,
   findVariants,
-  findVariantById,
   summary,
   findTransactions,
   findTransactionsByIds,

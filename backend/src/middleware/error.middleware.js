@@ -48,6 +48,12 @@ function errorHandler(error, req, res, next) {
       appError = AppError.unauthorized('Token expired');
     } else if (error?.type === 'entity.parse.failed') {
       appError = AppError.badRequest('Invalid JSON body');
+    } else if (error?.type === 'entity.too.large') {
+      // body-parser gắn sẵn status 413; không map thì rơi xuống 500 và bị ghi
+      // log như lỗi không lường trước, dù đây là lỗi của client.
+      appError = new AppError(413, 'Request body is too large');
+    } else if (error?.type === 'encoding.unsupported') {
+      appError = AppError.badRequest('Unsupported content encoding');
     } else if (error?.code === 'LIMIT_FILE_SIZE') {
       appError = AppError.badRequest('File too large');
     }

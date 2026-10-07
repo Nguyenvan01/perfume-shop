@@ -10,8 +10,11 @@ async function start() {
     // eslint-disable-next-line no-console
     console.log('[db] connected');
   } catch (error) {
+    // Message của Prisma khi connect lỗi có thể chứa cả connection string
+    // (kèm mật khẩu) — che lại trước khi ghi log.
+    const safeMessage = String(error.message).replace(/:\/\/([^:]+):[^@]+@/g, '://$1:***@');
     // eslint-disable-next-line no-console
-    console.error('[db] connection failed:', error.message);
+    console.error('[db] connection failed:', safeMessage);
     process.exit(1);
   }
 

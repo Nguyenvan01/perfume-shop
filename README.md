@@ -162,6 +162,10 @@ perfume-shop/
 | [`implementation_plan.md`](./implementation_plan.md) | Prisma schema đầy đủ, **API contract cho mọi endpoint** (method/path/role/request/response/error), orchestration wave, testing strategy |
 | [`task.md`](./task.md) | Checklist thi công theo wave |
 | [`docs/test-report.md`](./docs/test-report.md) | Kết quả test, MVP acceptance flow, bất biến dữ liệu |
+| [`docs/api.md`](./docs/api.md) | Bảng tra 94 endpoint: path, quyền, mô tả |
+| [`docs/erd.md`](./docs/erd.md) | ERD + quyết định thiết kế database |
+| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy lên Vercel / Render / MySQL cloud |
+| [`backend/tests/http/api.http`](./backend/tests/http/api.http) | Collection thử API tay (REST Client / Postman) |
 | [`backend/README.md`](./backend/README.md) | Hướng dẫn riêng cho backend |
 
 API contract trong `implementation_plan.md` §2 là **hợp đồng cứng** giữa frontend và backend — sửa contract trước, sửa code sau.
@@ -191,9 +195,63 @@ Tiền trả về dạng string (`Decimal`), ngày tháng ISO-8601. `meta` chỉ
 | W4 | M5 Inventory ∥ M6 Customer | ✅ Xong — nhập/xuất/điều chỉnh kho có lịch sử đầy đủ, chống tồn kho âm và race condition, quản lý khách hàng |
 | W5 | M7 Cart & Order (**MVP end-to-end**) | ✅ Xong — checkout trong một DB transaction, vòng đời đơn hàng, hoàn kho khi hủy/trả. **MVP flow chạy end-to-end** |
 | W6 | M8 Promotion + M9 Dashboard | ✅ Xong — CRUD khuyến mãi, 6 endpoint báo cáo, dashboard có KPI + 5 biểu đồ, số liệu khớp truy vấn SQL |
-| W7 | M10 Review + hardening + deploy | Kế tiếp |
+| W7 | M10 Review + hardening + tài liệu | ✅ Xong — đánh giá có xác thực đã mua, hardening bảo mật, 469 test, tài liệu đầy đủ |
 
 Chi tiết từng task: [`task.md`](./task.md).
+
+---
+
+## Hướng dẫn sử dụng
+
+### Luồng khách hàng
+
+1. **Đăng ký / đăng nhập** ở `/register` hoặc `/login`.
+2. **Tìm sản phẩm**: trang `/products` có lọc theo thương hiệu, danh mục, giới tính,
+   nồng độ, khoảng giá và "chỉ hàng còn sẵn". Thanh tìm kiếm ở header tìm theo tên
+   sản phẩm, thương hiệu và nhóm hương.
+3. **Chọn dung tích** ở trang chi tiết — giá đổi theo dung tích vì mỗi dung tích là
+   một SKU riêng có giá và tồn kho riêng. Dung tích hết hàng bị khoá chọn.
+4. **Giỏ hàng**: số lượng không vượt tồn kho. Nếu tồn kho giảm sau khi bạn đã thêm
+   vào giỏ, trang giỏ hiện cảnh báo ngay ở dòng đó.
+5. **Nhập mã giảm giá** ở giỏ hoặc trang thanh toán — hệ thống báo rõ lý do nếu mã
+   không áp được (chưa đạt giá trị tối thiểu, hết hạn, đã dùng...).
+6. **Đặt hàng**: thông tin người nhận điền sẵn từ hồ sơ. Hệ thống kiểm tra lại tồn
+   kho lần nữa tại bước này.
+7. **Theo dõi đơn** ở `/orders`. Chỉ huỷ được khi đơn còn ở trạng thái *Chờ xác nhận*.
+8. **Đánh giá** sản phẩm sau khi đơn *Hoàn thành* — mỗi sản phẩm đánh giá một lần,
+   sửa lại được.
+
+### Luồng quản trị
+
+Vào `/admin` bằng tài khoản ADMIN hoặc STAFF.
+
+| Việc cần làm | Vào đâu |
+|---|---|
+| Xem doanh thu, đơn chờ xử lý, hàng sắp hết | **Dashboard** |
+| Thêm thương hiệu, danh mục | **Thương hiệu** / **Danh mục** |
+| Thêm sản phẩm + dung tích + ảnh | **Sản phẩm** → Thêm sản phẩm → lưu → thêm biến thể và ảnh |
+| Nhập hàng về kho | **Tồn kho** → Nhập kho (một phiếu nhiều dòng) |
+| Kiểm kê, chỉnh số liệu lệch | **Tồn kho** → Điều chỉnh (chỉ ADMIN, bắt buộc ghi lý do) |
+| Tra lịch sử nhập xuất | **Lịch sử kho** — có cả tồn trước và sau mỗi giao dịch |
+| Xử lý đơn | **Đơn hàng** → chọn đơn → chỉ hiện đúng hành động hợp lệ |
+| Xem khách hàng, tổng chi tiêu | **Khách hàng** |
+| Tạo mã giảm giá | **Khuyến mãi** (chỉ ADMIN) |
+| Ẩn đánh giá không phù hợp | **Đánh giá** (chỉ ADMIN) |
+| Xuất số liệu ra CSV | **Báo cáo** |
+| Tạo tài khoản, phân quyền | **Người dùng** / **Vai trò & quyền** (chỉ ADMIN) |
+
+### Vài điều hệ thống cố tình không cho làm
+
+Đây là ràng buộc nghiệp vụ, không phải lỗi:
+
+- **Không sửa tồn kho trực tiếp** ở trang sản phẩm. Tồn kho chỉ đổi qua Nhập / Xuất /
+  Điều chỉnh, và mọi lần đổi đều ghi lại lịch sử.
+- **Không chuyển trạng thái đơn nhảy bước.** Phải đi lần lượt
+  *Chờ xác nhận → Đã xác nhận → Đang đóng gói → Đang giao → Hoàn thành*.
+- **Không huỷ đơn đã đóng gói trở đi.** Khách chỉ huỷ được đơn chưa xác nhận.
+- **Không xoá thương hiệu / danh mục còn sản phẩm**, không xoá biến thể đã có lịch sử kho.
+- **Không xoá mã giảm giá đã có đơn dùng** — hãy tắt nó đi để giữ lịch sử của đơn đó.
+- **Không đánh giá sản phẩm chưa mua**, và không tự khoá hay tự xoá tài khoản của chính mình.
 
 ---
 

@@ -8,12 +8,14 @@ const controller = require('./product.controller');
 const schemas = require('./product.validation');
 const variantRoute = require('../product-variants/variant.nested.route');
 const imageRoute = require('../product-images/image.route');
+const reviewRoute = require('../reviews/review.nested.route');
 
 const router = express.Router();
 
 // Route lồng: /products/:productId/variants và /products/:productId/images
 router.use('/:productId/variants', variantRoute);
 router.use('/:productId/images', imageRoute);
+router.use('/:productId/reviews', reviewRoute);
 
 router.get('/', optionalAuthenticate, validate(schemas.listSchema), controller.list);
 router.get('/:id', optionalAuthenticate, validate(schemas.detailSchema), controller.detail);

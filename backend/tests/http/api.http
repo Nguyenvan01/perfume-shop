@@ -1,0 +1,325 @@
+### Perfume Shop API — collection thử tay
+### Dùng với REST Client (VS Code) hoặc copy sang Postman.
+### Chạy tuần tự từ trên xuống: các biến @token được lấy từ response trước.
+
+@host = http://localhost:4000/api/v1
+@adminEmail = admin@perfume.local
+@staffEmail = staff@perfume.local
+@customerEmail = customer@perfume.local
+@password = Perfume@123
+
+### Health
+GET {{host}}/health
+
+### ───────────── AUTH ─────────────
+
+# @name adminLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "password": "{{password}}" }
+
+###
+@adminToken = {{adminLogin.response.body.data.accessToken}}
+
+# @name staffLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{staffEmail}}", "password": "{{password}}" }
+
+###
+@staffToken = {{staffLogin.response.body.data.accessToken}}
+
+# @name customerLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{customerEmail}}", "password": "{{password}}" }
+
+###
+@customerToken = {{customerLogin.response.body.data.accessToken}}
+
+### TC02 — sai mật khẩu, kỳ vọng 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "password": "SaiMatKhau1" }
+
+### Hồ sơ của mình
+GET {{host}}/auth/me
+Authorization: Bearer {{adminToken}}
+
+### Đăng ký khách mới
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "khachmoi@test.local",
+  "password": "Password123",
+  "full_name": "Khách Mới",
+  "phone": "0909123456",
+  "address": "12 Nguyễn Huệ, Quận 1, TP.HCM"
+}
+
+### ───────────── TC09: STAFF gọi API quản trị, kỳ vọng 403 ─────────────
+
+GET {{host}}/users
+Authorization: Bearer {{staffToken}}
+
+###
+GET {{host}}/roles
+Authorization: Bearer {{staffToken}}
+
+###
+GET {{host}}/permissions
+Authorization: Bearer {{staffToken}}
+
+### ADMIN gọi cùng endpoint, kỳ vọng 200
+GET {{host}}/users?limit=5
+Authorization: Bearer {{adminToken}}
+
+### ───────────── CATALOG ─────────────
+
+### Danh sách sản phẩm (công khai, không cần token)
+GET {{host}}/products?limit=5
+
+### Lọc sản phẩm
+GET {{host}}/products?gender=MALE&in_stock=true&sort=price:asc
+
+### Lấy sản phẩm bằng slug
+GET {{host}}/products/dior-sauvage-eau-de-parfum
+
+### TC03 — tạo sản phẩm hợp lệ
+POST {{host}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Sản phẩm thử API",
+  "brand_id": 1,
+  "category_id": 1,
+  "gender": "UNISEX",
+  "concentration": "EDP",
+  "origin": "Pháp",
+  "variants": [
+    { "sku": "HTTP-TEST-50", "volume_ml": 50, "price": 1500000 },
+    { "sku": "HTTP-TEST-100", "volume_ml": 100, "price": 2500000, "sale_price": 2200000 }
+  ]
+}
+
+### ───────────── INVENTORY ─────────────
+
+### Tổng quan kho
+GET {{host}}/inventory/summary
+Authorization: Bearer {{adminToken}}
+
+### Hàng sắp hết
+GET {{host}}/inventory/low-stock
+Authorization: Bearer {{adminToken}}
+
+### Nhập kho
+POST {{host}}/inventory/import
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "items": [{ "variant_id": 1, "quantity": 20 }], "note": "Nhập thử qua HTTP collection" }
+
+### Xuất quá tồn kho, kỳ vọng 422
+POST {{host}}/inventory/export
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "items": [{ "variant_id": 1, "quantity": 999999 }] }
+
+### Điều chỉnh kho (chỉ ADMIN; thiếu note sẽ 400)
+POST {{host}}/inventory/adjustment
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "variant_id": 1, "new_quantity": 25, "note": "Kiểm kê qua HTTP collection" }
+
+### Lịch sử kho
+GET {{host}}/inventory/transactions?variant_id=1
+Authorization: Bearer {{adminToken}}
+
+### ───────────── CART & ORDER ─────────────
+
+### Xem giỏ
+GET {{host}}/cart
+Authorization: Bearer {{customerToken}}
+
+### Thêm vào giỏ
+POST {{host}}/cart/items
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "variant_id": 1, "quantity": 2 }
+
+### TC04 — vượt tồn kho, kỳ vọng 422
+POST {{host}}/cart/items
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "variant_id": 1, "quantity": 999999 }
+
+### Xem trước tiền + áp mã giảm giá
+POST {{host}}/cart/preview
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "promotion_code": "WELCOME10" }
+
+### TC06 — đặt hàng
+# @name createOrder
+POST {{host}}/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "receiver_name": "Khách Hàng Demo",
+  "receiver_phone": "0909123456",
+  "shipping_address": "12 Nguyễn Huệ, Quận 1, TP.HCM",
+  "note": "Giao giờ hành chính",
+  "promotion_code": "WELCOME10",
+  "payment_method": "COD"
+}
+
+###
+@orderId = {{createOrder.response.body.data.id}}
+
+### TC07 — kiểm tra kho giảm và có transaction SALE
+GET {{host}}/inventory/transactions?variant_id=1&type=SALE
+Authorization: Bearer {{adminToken}}
+
+### TC08 — chuyển trạng thái sai thứ tự, kỳ vọng 409
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "SHIPPING" }
+
+### Vòng đời đúng: 1/4 xác nhận
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "CONFIRMED" }
+
+### 2/4 đóng gói
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "PACKING" }
+
+### 3/4 giao hàng
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "SHIPPING" }
+
+### 4/4 hoàn thành
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "COMPLETED" }
+
+### Đơn của tôi
+GET {{host}}/orders/my
+Authorization: Bearer {{customerToken}}
+
+### Danh sách đơn (admin)
+GET {{host}}/orders?status=COMPLETED
+Authorization: Bearer {{adminToken}}
+
+### Hóa đơn
+GET {{host}}/orders/{{orderId}}/invoice
+Authorization: Bearer {{adminToken}}
+
+### ───────────── PROMOTION ─────────────
+
+### Danh sách khuyến mãi
+GET {{host}}/promotions
+Authorization: Bearer {{adminToken}}
+
+### Chỉ mã đang chạy
+GET {{host}}/promotions?active_only=true
+Authorization: Bearer {{adminToken}}
+
+### Khách kiểm tra mã
+POST {{host}}/promotions/validate
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "code": "WELCOME10", "subtotal": 2000000 }
+
+### Tạo mã mới (chỉ ADMIN)
+POST {{host}}/promotions
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "code": "HTTPTEST20",
+  "name": "Giảm 20% thử qua HTTP",
+  "discount_type": "PERCENTAGE",
+  "discount_value": 20,
+  "minimum_order_value": 1000000,
+  "max_discount": 500000,
+  "start_date": "2026-10-01",
+  "end_date": "2026-12-31",
+  "usage_limit": 50,
+  "per_customer_limit": 1
+}
+
+### ───────────── REVIEW ─────────────
+
+### Đánh giá của một sản phẩm (công khai, kèm summary)
+GET {{host}}/products/1/reviews
+
+### Khách kiểm tra mình có được đánh giá không
+GET {{host}}/products/1/reviews/eligibility
+Authorization: Bearer {{customerToken}}
+
+### Gửi đánh giá (403 nếu chưa mua)
+POST {{host}}/products/1/reviews
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "rating": 5, "comment": "Mùi rất thơm, giữ hương lâu" }
+
+### Kiểm duyệt đánh giá
+GET {{host}}/reviews
+Authorization: Bearer {{adminToken}}
+
+### ───────────── REPORTS ─────────────
+
+### Dashboard
+GET {{host}}/reports/dashboard?range=30d
+Authorization: Bearer {{adminToken}}
+
+### Doanh thu theo ngày
+GET {{host}}/reports/revenue?range=30d&group_by=day
+Authorization: Bearer {{adminToken}}
+
+### Sản phẩm bán chạy
+GET {{host}}/reports/top-products?limit=10
+Authorization: Bearer {{adminToken}}
+
+### Doanh thu theo thương hiệu
+GET {{host}}/reports/revenue-by-brand?range=30d
+Authorization: Bearer {{adminToken}}
+
+### Đơn theo trạng thái
+GET {{host}}/reports/order-status?range=30d
+Authorization: Bearer {{adminToken}}
+
+### Hàng sắp hết
+GET {{host}}/reports/low-stock?limit=20
+Authorization: Bearer {{adminToken}}
+
+### range=custom thiếu from/to, kỳ vọng 400
+GET {{host}}/reports/dashboard?range=custom
+Authorization: Bearer {{adminToken}}

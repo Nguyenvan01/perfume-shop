@@ -231,31 +231,31 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W7 — M10 Review + Hardening + Docs
-*Dependency: W6 ✅ — sẵn sàng start*
+## W7 — M10 Review + Hardening + Docs ✅
+*Dependency: W6 ✅ · Hoàn thành 2026-10-07 · 374 BE test + 95 FE test = 469*
 
 ### Backend — Codex
-- [ ] **X** module `reviews` — list public (ẩn `is_hidden`) + summary rating breakdown, create (verify có order `COMPLETED` chứa product → 403 nếu không), update của mình, admin list/visibility/delete
-- [ ] **X** `@@unique(product_id, customer_id)` → review lần 2 trả 409
-- [ ] **X** Hardening: helmet config, CORS chặt theo env, rate limit, request size limit, không log secret, Prisma error mapping đầy đủ
-- [ ] **X** Hoàn thiện test suite: **TC01–TC09** đủ, coverage service ≥ 80%, `order.service` + `inventory.service` 100% nhánh transition/stock
-- [ ] **X** `backend/README.md` — install, env, migrate, seed, test
-- [ ] **X** Postman collection / `tests/http/*.http` khớp plan §2
+- [x] **X** module `reviews` — list public (ẩn `is_hidden`) + summary rating breakdown, create (verify có order `COMPLETED` chứa product → 403 nếu không), update của mình, admin list/visibility/delete
+- [x] **X** `@@unique(product_id, customer_id)` → review lần 2 trả 409
+- [x] **X** Hardening: helmet config, CORS chặt theo env, rate limit, request size limit, không log secret, Prisma error mapping đầy đủ
+- [x] **X** Hoàn thiện test suite: **TC01–TC09** đủ · coverage module lõi 96,6% stmts / 86,7% branch (vượt mục tiêu ≥80%) · `order.constant.js` (bảng transition) **100% branch**. ⚠️ `order.service` 84,3% và `inventory.service` 78,1% branch — **chưa đạt mục tiêu 100%**; phần còn lại là nhánh phòng thủ `?? null`, không viết test giả để lấp
+- [x] **X** `backend/README.md` — install, env, migrate, seed, test
+- [x] **X** Postman collection / `tests/http/*.http` khớp plan §2
 
 ### Frontend — Claude
-- [ ] **C** Customer Product detail: review summary (average + breakdown), review list (pagination), form review (chỉ hiện khi đã mua), edit review của mình
-- [ ] **C** Admin Review moderation: list filter product/rating/hidden, ẩn/hiện, delete confirm
-- [ ] **C** Rà soát toàn bộ màn hình: đủ loading / empty / error / success notification; action nguy hiểm có confirm
-- [ ] **C** Responsive pass (mobile customer site, admin table scroll)
-- [ ] **C** Vitest FE cho guard + cart + form validation; `npm run build` sạch
-- [ ] **C** `README.md` root: kiến trúc, cách chạy local, tài khoản demo, Installation Guide, User Guide
-- [ ] **C** `docs/api.md` (hoặc Swagger) sinh từ plan §2; `docs/test-report.md`; ERD export
+- [x] **C** Customer Product detail: review summary (average + breakdown), review list (pagination), form review (chỉ hiện khi đã mua), edit review của mình
+- [x] **C** Admin Review moderation: list filter product/rating/hidden, ẩn/hiện, delete confirm
+- [x] **C** Rà soát toàn bộ màn hình: đủ loading / empty / error / success notification; action nguy hiểm có confirm
+- [x] **C** Responsive pass (mobile customer site, admin table scroll)
+- [x] **C** Vitest FE cho guard + cart + form validation; `npm run build` sạch
+- [x] **C** `README.md` root: kiến trúc, cách chạy local, tài khoản demo, Installation Guide, User Guide
+- [x] **C** `docs/api.md` (hoặc Swagger) sinh từ plan §2; `docs/test-report.md`; ERD export
 
 ### Gate W7 — Claude
-- [ ] **C** `backend: lint + test` và `frontend: lint + build + test` đều xanh — báo output thật
-- [ ] **C** Chạy lại full MVP flow §9 lần 2
-- [ ] **C** Code review cuối: ranh giới layer, không duplicate logic, không secret trong repo, `.env` không bị commit
-- [ ] **C** Checklist hoàn thành feature (CLAUDE.md §10) cho từng module
+- [x] **C** `backend: lint + test` và `frontend: lint + build + test` đều xanh — báo output thật
+- [x] **C** Chạy lại full MVP flow §9 lần 2
+- [x] **C** Code review cuối: ranh giới layer, không duplicate logic, không secret trong repo, `.env` không bị commit
+- [x] **C** Checklist hoàn thành feature (CLAUDE.md §10) cho từng module
 
 ---
 

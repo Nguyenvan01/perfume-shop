@@ -34,6 +34,10 @@ curl http://localhost:4000/api/v1/health
 | `npm run seed` | Seed idempotent — chạy lại không nhân bản dữ liệu |
 | `npm run prisma:studio` | Prisma Studio |
 
+Thử API tay: mở [`tests/http/api.http`](./tests/http/api.http) bằng REST Client (VS Code)
+hoặc import sang Postman. File chạy tuần tự từ trên xuống, token lấy tự động từ response
+trước, và có sẵn các case kỳ vọng lỗi (TC02 401, TC04 422, TC08 409, TC09 403).
+
 ## Tài khoản seed
 
 | Email | Role |
@@ -58,7 +62,8 @@ src/
 
 ## Quy ước
 
-- Mọi response theo envelope `{ success, message, data, meta? }` — xem `../implementation_plan.md` §2.
+- Mọi response theo envelope `{ success, message, data, meta? }` — xem [`../docs/api.md`](../docs/api.md)
+  để tra nhanh 94 endpoint, hoặc `../implementation_plan.md` §2 cho hợp đồng chi tiết.
 - Lỗi dự đoán được: `throw AppError.<kind>(...)`, không `res.status()` rải rác.
 - Danh sách luôn pagination; sort chỉ nhận field trong whitelist.
 - Tiền dùng `Decimal(12,2)`, serialize ra string.
@@ -74,3 +79,13 @@ src/
 | `perfume_shop_shadow` | Prisma Migrate diff schema |
 
 Reset sạch: `docker compose down -v && docker compose up -d` rồi migrate + seed lại.
+
+## Bảo mật
+
+- Rate limit: 300 req/phút toàn API · 60 req/phút cho method ghi · 10 req/5 phút cho
+  `/auth/login` và `/auth/forgot-password`. Tắt ở `NODE_ENV=test`.
+- Body giới hạn 256KB (file upload đi qua multer, giới hạn riêng 2MB/file).
+- `helmet` bật `nosniff`, `no-referrer`, tắt `X-Powered-By`.
+- CORS chỉ cho origin trong `CORS_ORIGIN`; origin lạ nhận 403.
+- Không log mật khẩu hay token. Lỗi kết nối DB được che `mysql://user:***@host`.
+- Ở production app tự `trust proxy` để rate limit đọc IP thật sau proxy.

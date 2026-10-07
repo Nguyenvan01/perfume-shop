@@ -216,12 +216,6 @@ async function createAdjustment({ variant_id, new_quantity, note, userId }) {
   return toTransactionDTO(txn);
 }
 
-async function variantDetail(variantId) {
-  const variant = await repo.findVariantById(variantId);
-  if (!variant) throw AppError.notFound('Variant not found');
-  return variant;
-}
-
 module.exports = {
   applyStockMovement,
   toTransactionDTO,
@@ -232,5 +226,4 @@ module.exports = {
   listTransactions,
   createBulkMovement,
   createAdjustment,
-  variantDetail,
 };

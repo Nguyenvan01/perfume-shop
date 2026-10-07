@@ -8,5 +8,6 @@ export { customersApi } from './customers';
 export { cartApi } from './cart';
 export { ordersApi } from './orders';
 export { promotionsApi } from './promotions';
-export { reviewsApi } from './reviews';
+
 export { reportsApi } from './reports';
+export { reviewsApi } from './reviews';

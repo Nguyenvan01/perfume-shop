@@ -37,6 +37,8 @@ async function lockByCodeForUpdate(tx, code) {
   return rows[0] ?? null;
 }
 
+const findCustomerByUserId = (user_id) => prisma.customer.findUnique({ where: { user_id } });
+
 const countCustomerUsage = (promotion_id, customer_id, client = prisma) =>
   client.promotionUsage.count({ where: { promotion_id, customer_id } });
 
@@ -93,6 +95,7 @@ module.exports = {
   PROMOTION_SELECT,
   findByCode,
   lockByCodeForUpdate,
+  findCustomerByUserId,
   countCustomerUsage,
   createUsage,
   incrementUsedCount,

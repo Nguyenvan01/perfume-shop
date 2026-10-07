@@ -1,4 +1,5 @@
 import { Table, Typography } from 'antd';
+import { EmptyState } from '../../../components';
 import { formatCurrency } from '../../../utils/format';
 
 const { Text } = Typography;
@@ -47,6 +48,9 @@ export default function OrderItemsTable({ details }) {
       dataSource={details}
       pagination={false}
       scroll={{ x: 'max-content' }}
+      // Thực tế đơn luôn có chi tiết (checkout từ chối giỏ rỗng), nhưng nếu dữ
+      // liệu được đọc thiếu quan hệ thì vẫn hiện tử tế thay vì bảng trắng.
+      locale={{ emptyText: <EmptyState description="Đơn hàng không có sản phẩm nào" /> }}
     />
   );
 }
