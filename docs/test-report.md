@@ -1,14 +1,14 @@
 # Test Report — Perfume Shop Management System
 
-Cập nhật: 2026-10-07 · sau Wave 5 (MVP core)
+Cập nhật: 2026-10-07 · sau Wave 6 (Promotion + Dashboard/Report)
 
 ## 1. Tổng quan
 
 | Lớp | Công cụ | Số test | Kết quả |
 |---|---|---|---|
-| Backend unit + integration | Jest + Supertest (DB `perfume_shop_test`) | 224 | ✅ pass |
-| Frontend unit + component | Vitest + React Testing Library | 58 | ✅ pass |
-| **Tổng** | | **282** | ✅ pass |
+| Backend unit + integration | Jest + Supertest (DB `perfume_shop_test`) | 288 | ✅ pass |
+| Frontend unit + component | Vitest + React Testing Library | 82 | ✅ pass |
+| **Tổng** | | **370** | ✅ pass |
 
 Lint: `backend: eslint src prisma tests` và `frontend: eslint src` đều sạch.
 Build: `frontend: vite build` thành công.
@@ -94,9 +94,47 @@ Sau nhánh hủy: **0 variant lệch**.
 | W3 | `ProductDTO` lộ `deleted_at` | Rò rỉ cờ nội bộ của soft delete ra API công khai |
 | W4 | `createBulkMovement` đọc "N giao dịch mới nhất của toàn bảng" sau commit | Request đồng thời trả về giao dịch của người khác |
 | W5 | Mã đơn tạm `TMP-{uuid}` dài 40 ký tự > `VarChar(32)` | Mọi lần checkout trả 500 |
+| W6 | — (không có bug code; 2 lỗi nằm ở chính test: payload `name` quá ngắn và sai số học `bandCenter`) | |
 
-## 7. Chưa kiểm thử (ghi nhận để làm tiếp)
+## 7. Báo cáo & Dashboard (W6)
+
+Số liệu dashboard được đối chiếu với dữ liệu thật tạo qua API (3 đơn COMPLETED,
+1 PENDING, 1 CANCELLED):
+
+| Chỉ số | Kỳ vọng | Dashboard trả về | |
+|---|---|---|---|
+| Doanh thu (chỉ COMPLETED) | 9.990.000 | 9.990.000 | ✅ |
+| Đơn hoàn thành | 3 | 3 | ✅ |
+| Đơn tạo trong kỳ | 5 | 5 | ✅ |
+| Đơn chờ xác nhận | 1 | 1 | ✅ |
+| `range=today` | 9.990.000 | 9.990.000 | ✅ |
+| Tổng tỷ trọng theo brand | 100% | 100,0% | ✅ |
+| Đơn theo trạng thái | đủ 7 trạng thái kể cả count 0 | 7 | ✅ |
+
+**Hai cơ sở tính doanh thu khác nhau — có chủ ý, không phải sai số:**
+
+- `/reports/dashboard` → `revenue` cộng `orders.total_amount`: tiền thực thu,
+  đã trừ giảm giá, **đã gồm** phí vận chuyển. `revenue_basis = order_total_including_shipping`.
+- `/reports/revenue-by-brand` → cộng `order_details.line_total`: tiền **hàng**,
+  không gồm phí ship và giảm giá toàn đơn (hai khoản này không thuộc thương hiệu nào).
+  `basis = product_revenue_excluding_shipping_and_discount`.
+
+Trong lần kiểm chứng: 9.990.000 − 9.900.000 = 90.000 = 3 đơn × 30.000 phí ship.
+Chênh lệch này được ghi rõ trong response và hiển thị ngay dưới biểu đồ.
+
+**Múi giờ:** báo cáo tính theo ngày giờ Việt Nam (UTC+7), không theo UTC. Nếu tính
+theo UTC thì "doanh thu hôm nay" lệch 7 tiếng mỗi ngày — đơn đặt 8h sáng VN bị tính
+sang hôm trước. 12 test trong `tests/unit/dateRange.test.js` kiểm chứng điều này,
+gồm case "đơn 8h sáng VN nằm trong today" và "đơn 23h đêm hôm trước thì không".
+
+**Biểu đồ:** 5 biểu đồ tự vẽ bằng SVG thuần thay vì dùng thư viện chart. Toán học
+thang đo tách ra `scale.js` và có 24 test — đây là chỗ biểu đồ tự vẽ thường sai
+(mốc trục không tròn, chia cho 0 khi max = 0, cột lấp kín band, crosshair lệch khi
+chuột ra ngoài vùng vẽ). Màu chuỗi dữ liệu đã chạy qua validator màu: đạt cả 5 kiểm
+tra trên đúng surface `#ffffff` của app.
+
+## 8. Chưa kiểm thử (ghi nhận để làm tiếp)
 
 - UI test end-to-end bằng trình duyệt (Playwright/Cypress) — hiện chỉ test component bằng RTL.
-- Promotion CRUD (W6), Dashboard/Report (W6), Review (W7).
+- Review (W7).
 - Tải đồng thời ở quy mô lớn (hiện chỉ test 2 request song song).

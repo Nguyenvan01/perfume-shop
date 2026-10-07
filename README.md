@@ -189,9 +189,9 @@ Tiền trả về dạng string (`Decimal`), ngày tháng ISO-8601. `meta` chỉ
 | W2 | M3 Auth / User / Role / Permission | ✅ Xong — JWT access+refresh có rotation, RBAC, user/role CRUD |
 | W3 | M4 Catalog (brand, category, product, variant, image) | ✅ Xong — CRUD đủ 5 resource, upload ảnh qua storage adapter, trang sản phẩm cho khách |
 | W4 | M5 Inventory ∥ M6 Customer | ✅ Xong — nhập/xuất/điều chỉnh kho có lịch sử đầy đủ, chống tồn kho âm và race condition, quản lý khách hàng |
-| W5 | M7 Cart & Order (**MVP end-to-end**) | ✅ Xong — giỏ hàng, checkout trong một DB transaction, vòng đời đơn hàng, hoàn kho khi hủy/trả. **MVP flow chạy end-to-end** |
-| W6 | M8 Promotion + M9 Dashboard | Kế tiếp |
-| W7 | M10 Review + hardening + deploy | Chưa làm |
+| W5 | M7 Cart & Order (**MVP end-to-end**) | ✅ Xong — checkout trong một DB transaction, vòng đời đơn hàng, hoàn kho khi hủy/trả. **MVP flow chạy end-to-end** |
+| W6 | M8 Promotion + M9 Dashboard | ✅ Xong — CRUD khuyến mãi, 6 endpoint báo cáo, dashboard có KPI + 5 biểu đồ, số liệu khớp truy vấn SQL |
+| W7 | M10 Review + hardening + deploy | Kế tiếp |
 
 Chi tiết từng task: [`task.md`](./task.md).
 

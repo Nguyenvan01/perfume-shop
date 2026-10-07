@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Result } from 'antd';
 
@@ -5,44 +6,51 @@ import AuthLayout from '../layouts/AuthLayout';
 import CustomerLayout from '../layouts/CustomerLayout';
 import AdminLayout from '../layouts/AdminLayout';
 import ProtectedRoute from './ProtectedRoute';
+import { LoadingState } from '../components';
 import { ROLES } from '../utils/constants';
 
-// Auth
-import LoginPage from '../pages/auth/LoginPage';
-import RegisterPage from '../pages/auth/RegisterPage';
-import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
+/**
+ * Mỗi page là một chunk riêng (React.lazy).
+ * Khách vào trang chủ không phải tải code của Admin Portal, và biểu đồ
+ * Dashboard chỉ được tải khi thực sự mở Dashboard.
+ */
 
-// Customer
-import HomePage from '../pages/customer/HomePage';
-import CustomerProductsPage from '../pages/customer/ProductsPage';
-import CustomerProductDetailPage from '../pages/customer/ProductDetailPage';
-import SearchPage from '../pages/customer/SearchPage';
-import CartPage from '../pages/customer/CartPage';
-import CheckoutPage from '../pages/customer/CheckoutPage';
-import CustomerOrdersPage from '../pages/customer/OrdersPage';
-import CustomerOrderDetailPage from '../pages/customer/OrderDetailPage';
-import CustomerProfilePage from '../pages/customer/ProfilePage';
+const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'));
+const HomePage = lazy(() => import('../pages/customer/HomePage'));
+const CustomerProductsPage = lazy(() => import('../pages/customer/ProductsPage'));
+const CustomerProductDetailPage = lazy(() => import('../pages/customer/ProductDetailPage'));
+const SearchPage = lazy(() => import('../pages/customer/SearchPage'));
+const CartPage = lazy(() => import('../pages/customer/CartPage'));
+const CheckoutPage = lazy(() => import('../pages/customer/CheckoutPage'));
+const CustomerOrdersPage = lazy(() => import('../pages/customer/OrdersPage'));
+const CustomerOrderDetailPage = lazy(() => import('../pages/customer/OrderDetailPage'));
+const CustomerProfilePage = lazy(() => import('../pages/customer/ProfilePage'));
+const DashboardPage = lazy(() => import('../pages/admin/DashboardPage'));
+const AdminProductsPage = lazy(() => import('../pages/admin/ProductsPage'));
+const AdminProductFormPage = lazy(() => import('../pages/admin/ProductFormPage'));
+const AdminProductDetailPage = lazy(() => import('../pages/admin/ProductDetailPage'));
+const BrandsPage = lazy(() => import('../pages/admin/BrandsPage'));
+const CategoriesPage = lazy(() => import('../pages/admin/CategoriesPage'));
+const InventoryPage = lazy(() => import('../pages/admin/InventoryPage'));
+const InventoryTransactionsPage = lazy(() => import('../pages/admin/InventoryTransactionsPage'));
+const AdminOrdersPage = lazy(() => import('../pages/admin/OrdersPage'));
+const AdminOrderDetailPage = lazy(() => import('../pages/admin/OrderDetailPage'));
+const CustomersPage = lazy(() => import('../pages/admin/CustomersPage'));
+const CustomerDetailPage = lazy(() => import('../pages/admin/CustomerDetailPage'));
+const PromotionsPage = lazy(() => import('../pages/admin/PromotionsPage'));
+const ReviewsPage = lazy(() => import('../pages/admin/ReviewsPage'));
+const UsersPage = lazy(() => import('../pages/admin/UsersPage'));
+const RolesPage = lazy(() => import('../pages/admin/RolesPage'));
+const ReportsPage = lazy(() => import('../pages/admin/ReportsPage'));
+const AdminProfilePage = lazy(() => import('../pages/admin/ProfilePage'));
 
-// Admin
-import DashboardPage from '../pages/admin/DashboardPage';
-import AdminProductsPage from '../pages/admin/ProductsPage';
-import AdminProductFormPage from '../pages/admin/ProductFormPage';
-import AdminProductDetailPage from '../pages/admin/ProductDetailPage';
-import BrandsPage from '../pages/admin/BrandsPage';
-import CategoriesPage from '../pages/admin/CategoriesPage';
-import InventoryPage from '../pages/admin/InventoryPage';
-import InventoryTransactionsPage from '../pages/admin/InventoryTransactionsPage';
-import AdminOrdersPage from '../pages/admin/OrdersPage';
-import AdminOrderDetailPage from '../pages/admin/OrderDetailPage';
-import CustomersPage from '../pages/admin/CustomersPage';
-import CustomerDetailPage from '../pages/admin/CustomerDetailPage';
-import PromotionsPage from '../pages/admin/PromotionsPage';
-import ReviewsPage from '../pages/admin/ReviewsPage';
-import UsersPage from '../pages/admin/UsersPage';
-import RolesPage from '../pages/admin/RolesPage';
-import ReportsPage from '../pages/admin/ReportsPage';
-import AdminProfilePage from '../pages/admin/ProfilePage';
+/** Khung chờ khi chunk của page đang được tải. */
+const Lazy = ({ children }) => (
+  <Suspense fallback={<LoadingState tip="Đang tải trang..." />}>{children}</Suspense>
+);
 
 const STAFF_OR_ADMIN = [ROLES.ADMIN, ROLES.STAFF];
 
@@ -51,10 +59,10 @@ export const router = createBrowserRouter([
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
-      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/login', element: <Lazy><LoginPage /></Lazy> },
+      { path: '/register', element: <Lazy><RegisterPage /></Lazy> },
+      { path: '/forgot-password', element: <Lazy><ForgotPasswordPage /></Lazy> },
+      { path: '/reset-password', element: <Lazy><ResetPasswordPage /></Lazy> },
     ],
   },
 
@@ -63,19 +71,19 @@ export const router = createBrowserRouter([
     path: '/',
     element: <CustomerLayout />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'products', element: <CustomerProductsPage /> },
-      { path: 'products/:slug', element: <CustomerProductDetailPage /> },
-      { path: 'search', element: <SearchPage /> },
-      { path: 'cart', element: <CartPage /> },
+      { index: true, element: <Lazy><HomePage /></Lazy> },
+      { path: 'products', element: <Lazy><CustomerProductsPage /></Lazy> },
+      { path: 'products/:slug', element: <Lazy><CustomerProductDetailPage /></Lazy> },
+      { path: 'search', element: <Lazy><SearchPage /></Lazy> },
+      { path: 'cart', element: <Lazy><CartPage /></Lazy> },
       // Cần đăng nhập (role nào cũng được, nhưng thực tế là CUSTOMER)
       {
         element: <ProtectedRoute />,
         children: [
-          { path: 'checkout', element: <CheckoutPage /> },
-          { path: 'orders', element: <CustomerOrdersPage /> },
-          { path: 'orders/:id', element: <CustomerOrderDetailPage /> },
-          { path: 'profile', element: <CustomerProfilePage /> },
+          { path: 'checkout', element: <Lazy><CheckoutPage /></Lazy> },
+          { path: 'orders', element: <Lazy><CustomerOrdersPage /></Lazy> },
+          { path: 'orders/:id', element: <Lazy><CustomerOrderDetailPage /></Lazy> },
+          { path: 'profile', element: <Lazy><CustomerProfilePage /></Lazy> },
         ],
       },
     ],
@@ -89,30 +97,30 @@ export const router = createBrowserRouter([
       {
         element: <AdminLayout />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'products', element: <AdminProductsPage /> },
-          { path: 'products/new', element: <AdminProductFormPage /> },
-          { path: 'products/:id', element: <AdminProductDetailPage /> },
-          { path: 'products/:id/edit', element: <AdminProductFormPage /> },
-          { path: 'brands', element: <BrandsPage /> },
-          { path: 'categories', element: <CategoriesPage /> },
-          { path: 'inventory', element: <InventoryPage /> },
-          { path: 'inventory/transactions', element: <InventoryTransactionsPage /> },
-          { path: 'orders', element: <AdminOrdersPage /> },
-          { path: 'orders/:id', element: <AdminOrderDetailPage /> },
-          { path: 'customers', element: <CustomersPage /> },
-          { path: 'customers/:id', element: <CustomerDetailPage /> },
-          { path: 'promotions', element: <PromotionsPage /> },
-          { path: 'reviews', element: <ReviewsPage /> },
-          { path: 'reports', element: <ReportsPage /> },
-          { path: 'profile', element: <AdminProfilePage /> },
+          { index: true, element: <Lazy><DashboardPage /></Lazy> },
+          { path: 'products', element: <Lazy><AdminProductsPage /></Lazy> },
+          { path: 'products/new', element: <Lazy><AdminProductFormPage /></Lazy> },
+          { path: 'products/:id', element: <Lazy><AdminProductDetailPage /></Lazy> },
+          { path: 'products/:id/edit', element: <Lazy><AdminProductFormPage /></Lazy> },
+          { path: 'brands', element: <Lazy><BrandsPage /></Lazy> },
+          { path: 'categories', element: <Lazy><CategoriesPage /></Lazy> },
+          { path: 'inventory', element: <Lazy><InventoryPage /></Lazy> },
+          { path: 'inventory/transactions', element: <Lazy><InventoryTransactionsPage /></Lazy> },
+          { path: 'orders', element: <Lazy><AdminOrdersPage /></Lazy> },
+          { path: 'orders/:id', element: <Lazy><AdminOrderDetailPage /></Lazy> },
+          { path: 'customers', element: <Lazy><CustomersPage /></Lazy> },
+          { path: 'customers/:id', element: <Lazy><CustomerDetailPage /></Lazy> },
+          { path: 'promotions', element: <Lazy><PromotionsPage /></Lazy> },
+          { path: 'reviews', element: <Lazy><ReviewsPage /></Lazy> },
+          { path: 'reports', element: <Lazy><ReportsPage /></Lazy> },
+          { path: 'profile', element: <Lazy><AdminProfilePage /></Lazy> },
 
           // ADMIN-only: STAFF vào sẽ thấy 403 (backend cũng trả 403 — TC09)
           {
             element: <ProtectedRoute allowedRoles={[ROLES.ADMIN]} />,
             children: [
-              { path: 'users', element: <UsersPage /> },
-              { path: 'roles', element: <RolesPage /> },
+              { path: 'users', element: <Lazy><UsersPage /></Lazy> },
+              { path: 'roles', element: <Lazy><RolesPage /></Lazy> },
             ],
           },
         ],

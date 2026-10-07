@@ -61,6 +61,8 @@ const env = {
     .filter(Boolean),
 
   LOW_STOCK_THRESHOLD: readNumber('LOW_STOCK_THRESHOLD', 5),
+  // Báo cáo tính theo ngày giờ Việt Nam (UTC+7), không theo UTC.
+  REPORT_TIMEZONE_OFFSET: readNumber('REPORT_TIMEZONE_OFFSET', 7),
   DEFAULT_SHIPPING_FEE: readNumber('DEFAULT_SHIPPING_FEE', 30000),
 
   STORAGE_DRIVER: process.env.STORAGE_DRIVER || 'local',

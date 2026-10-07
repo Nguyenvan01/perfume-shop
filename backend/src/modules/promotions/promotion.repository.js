@@ -48,6 +48,47 @@ const incrementUsedCount = (tx, id, by = 1) =>
 const deleteUsageByOrder = (tx, order_id) =>
   tx.promotionUsage.deleteMany({ where: { order_id } });
 
+
+// ─── CRUD (W6) ───
+
+const notDeleted = {};
+
+function buildWhere({ q, status, active_only }, now = new Date()) {
+  const where = { ...notDeleted };
+  if (q) where.OR = [{ code: { contains: q } }, { name: { contains: q } }];
+  if (status) where.status = status;
+  // active_only: đang hiệu lực NGAY LÚC NÀY, không chỉ status ACTIVE.
+  if (active_only) {
+    where.status = 'ACTIVE';
+    where.start_date = { lte: now };
+    where.end_date = { gte: now };
+  }
+  return where;
+}
+
+async function findMany({ filters, skip, take, orderBy }) {
+  const where = buildWhere(filters);
+  const [items, total] = await Promise.all([
+    prisma.promotion.findMany({ where, skip, take, orderBy, select: PROMOTION_SELECT }),
+    prisma.promotion.count({ where }),
+  ]);
+  return { items, total };
+}
+
+const findById = (id) =>
+  prisma.promotion.findUnique({
+    where: { id },
+    select: { ...PROMOTION_SELECT, created_at: true, updated_at: true, _count: { select: { usages: true } } },
+  });
+
+const create = (data) => prisma.promotion.create({ data, select: PROMOTION_SELECT });
+
+const update = (id, data) => prisma.promotion.update({ where: { id }, data, select: PROMOTION_SELECT });
+
+const remove = (id) => prisma.promotion.delete({ where: { id } });
+
+const countUsages = (promotion_id) => prisma.promotionUsage.count({ where: { promotion_id } });
+
 module.exports = {
   PROMOTION_SELECT,
   findByCode,
@@ -56,4 +97,10 @@ module.exports = {
   createUsage,
   incrementUsedCount,
   deleteUsageByOrder,
+  findMany,
+  findById,
+  create,
+  update,
+  remove,
+  countUsages,
 };

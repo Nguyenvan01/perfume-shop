@@ -201,38 +201,38 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W6 — M8 Promotion + M9 Dashboard/Report
-*Dependency: W5 ✅ — sẵn sàng start*
+## W6 — M8 Promotion + M9 Dashboard/Report ✅
+*Dependency: W5 ✅ · Hoàn thành 2026-10-07 · 288 BE test + 82 FE test · số dashboard khớp SQL*
 
 > W5 đã làm trước phần **validate + apply** khuyến mãi (checkout cần theo contract).
 > W6 chỉ còn CRUD khuyến mãi cho admin + toàn bộ dashboard/report.
 
 ### Backend — Codex
-- [ ] **X** module `promotions` — CRUD (validate `end_date > start_date`, PERCENTAGE 1–100, FIXED > 0), status toggle, chặn xoá khi đã dùng
-- [ ] **X** `POST /promotions/validate` — trả `discount_amount` + message lỗi cụ thể cho từng rule (status/expired/not started/usage limit/minimum/per-customer)
-- [ ] **X** `promotion.service.calculateDiscount` — PERCENTAGE bị chặn bởi `max_discount`; discount không vượt subtotal
-- [ ] **X** Nối promotion vào `/cart/preview` + `/orders` (đã mở sẵn ở W5)
-- [ ] **X** module `reports` — 6 endpoint plan §2.15; `range` parser (today/7d/30d/this_month/custom); doanh thu chỉ `COMPLETED`; dùng `groupBy`/aggregate, không loop trong JS
-- [ ] **X** Tests: mọi rule promotion (mỗi rule 1 case); report revenue chỉ đếm COMPLETED; `range=custom` thiếu date → 400; top-products đúng thứ tự
+- [x] **X** module `promotions` — CRUD (validate `end_date > start_date`, PERCENTAGE 1–100, FIXED > 0), status toggle, chặn xoá khi đã dùng
+- [x] **X** `POST /promotions/validate` — trả `discount_amount` + message lỗi cụ thể cho từng rule (status/expired/not started/usage limit/minimum/per-customer)
+- [x] **X** `promotion.service.calculateDiscount` — PERCENTAGE bị chặn bởi `max_discount`; discount không vượt subtotal
+- [x] **X** Nối promotion vào `/cart/preview` + `/orders` (đã mở sẵn ở W5)
+- [x] **X** module `reports` — 6 endpoint plan §2.15; `range` parser (today/7d/30d/this_month/custom); doanh thu chỉ `COMPLETED`; dùng `groupBy`/aggregate, không loop trong JS
+- [x] **X** Tests: mọi rule promotion (mỗi rule 1 case); report revenue chỉ đếm COMPLETED; `range=custom` thiếu date → 400; top-products đúng thứ tự
 
 ### Frontend — Claude
-- [ ] **C** Admin Promotion list: filter status/active, pagination, hiển thị `used_count/usage_limit`
-- [ ] **C** Admin Promotion create/edit: form + date range picker + validate type/value, toggle status, delete confirm
-- [ ] **C** Customer: ô nhập voucher ở Cart + Checkout, hiện discount hoặc message lỗi từ API
-- [ ] **C** Admin Dashboard: 4 KPI card (+ pending orders, low stock), range filter (today/7d/30d/this month/custom)
-- [ ] **C** Chart: revenue theo day/month (line), orders theo day/month (bar), top products (bar/table), revenue by brand (pie/bar), order status (pie) — dùng thư viện chart đã có trong stack AntD (`@ant-design/plots`)
-- [ ] **C** Low-stock table trên Dashboard (reuse W4a widget)
-- [ ] **C** Reports page: export CSV client-side (optional)
+- [x] **C** Admin Promotion list: filter status/active, pagination, hiển thị `used_count/usage_limit`
+- [x] **C** Admin Promotion create/edit: form + date range picker + validate type/value, toggle status, delete confirm
+- [x] **C** Customer: ô nhập voucher ở Cart + Checkout, hiện discount hoặc message lỗi từ API
+- [x] **C** Admin Dashboard: 4 KPI card (+ pending orders, low stock), range filter (today/7d/30d/this month/custom)
+- [x] **C** Chart: revenue (line), orders (column), top products (bar ngang), revenue by brand (bar ngang), order status (bar ngang) — **tự vẽ bằng SVG thuần thay vì `@ant-design/plots`**: 5 biểu đồ đều đơn giản, tự vẽ thì kiểm soát được mark spec và không thêm ~600KB vào bundle. Toán học thang đo tách riêng (`scale.js`) và có test
+- [x] **C** Low-stock table trên Dashboard (reuse W4a widget)
+- [x] **C** Reports page: export CSV client-side (optional)
 
 ### Gate W6 — Claude
-- [ ] **C** So số Dashboard với query SQL tay trên cùng range → khớp
-- [ ] **C** Test từng rule voucher trên UI, message hiển thị đúng
-- [ ] **C** Không hard-code dữ liệu demo ở FE
+- [x] **C** So số Dashboard với query SQL tay trên cùng range → khớp
+- [x] **C** Test từng rule voucher trên UI, message hiển thị đúng
+- [x] **C** Không hard-code dữ liệu demo ở FE
 
 ---
 
 ## W7 — M10 Review + Hardening + Docs
-*Dependency: W5 (cần order COMPLETED)*
+*Dependency: W6 ✅ — sẵn sàng start*
 
 ### Backend — Codex
 - [ ] **X** module `reviews` — list public (ẩn `is_hidden`) + summary rating breakdown, create (verify có order `COMPLETED` chứa product → 403 nếu không), update của mình, admin list/visibility/delete

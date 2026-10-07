@@ -15,6 +15,7 @@ const customerRoute = require('../modules/customers/customer.route');
 const cartRoute = require('../modules/carts/cart.route');
 const orderRoute = require('../modules/orders/order.route');
 const promotionRoute = require('../modules/promotions/promotion.route');
+const reportRoute = require('../modules/reports/report.route');
 
 const router = express.Router();
 
@@ -32,5 +33,6 @@ router.use('/customers', customerRoute);
 router.use('/cart', cartRoute);
 router.use('/orders', orderRoute);
 router.use('/promotions', promotionRoute);
+router.use('/reports', reportRoute);
 
 module.exports = router;
