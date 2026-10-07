@@ -67,41 +67,41 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W2 — M3 Auth, User, Role, Permission
-*Dependency: W1 ✅ — sẵn sàng start*
+## W2 — M3 Auth, User, Role, Permission ✅
+*Dependency: W1 ✅ · Hoàn thành 2026-10-07 · gate đã pass (77 BE test + 24 FE test)*
 
 ### Backend — Codex
-- [ ] **X** `middleware/auth.middleware.js` — verify access token → `req.user = {id, email, roles[], permissions[]}`
-- [ ] **X** `middleware/role.middleware.js` — `requireRole(...roles)`, `requirePermission(code)`
-- [ ] **X** module `auth`: register, login, refresh (rotation + revoke cũ), logout, me, update me, change-password, forgot-password, reset-password
-- [ ] **X** `forgot-password`: `NODE_ENV=development` trả `reset_token` trong response + log; production chỉ 200 rỗng (OD-6)
-- [ ] **X** bcrypt cost 10; password rule ≥8 có chữ+số; login fail không tiết lộ email tồn tại
-- [ ] **X** Register tự tạo `Customer` + gán role CUSTOMER + tạo `Cart` (trong 1 `$transaction`)
-- [ ] **X** Account `LOCKED` → login 403
-- [ ] **X** module `users`: list/detail/create/update/status/reset-password/soft-delete — ADMIN only; chặn tự khoá/xoá chính mình (409)
-- [ ] **X** module `roles` + `permissions` — ADMIN only; chặn xoá role hệ thống
-- [ ] **X** Rate limit `/auth/login` (vd 10 req/5min/IP)
-- [ ] **X** Tests: **TC01**, **TC02**, **TC09** + refresh rotation, change-password, locked user, user CRUD authz
+- [x] **X** `middleware/auth.middleware.js` — verify access token → `req.user = {id, email, roles[], permissions[]}`
+- [x] **X** `middleware/role.middleware.js` — `requireRole(...roles)`, `requirePermission(code)`
+- [x] **X** module `auth`: register, login, refresh (rotation + revoke cũ), logout, me, update me, change-password, forgot-password, reset-password
+- [x] **X** `forgot-password`: `NODE_ENV=development` trả `reset_token` trong response + log; production chỉ 200 rỗng (OD-6)
+- [x] **X** bcrypt cost 10; password rule ≥8 có chữ+số; login fail không tiết lộ email tồn tại
+- [x] **X** Register tự tạo `Customer` + gán role CUSTOMER + tạo `Cart` (trong 1 `$transaction`)
+- [x] **X** Account `LOCKED` → login 403
+- [x] **X** module `users`: list/detail/create/update/status/reset-password/soft-delete — ADMIN only; chặn tự khoá/xoá chính mình (409)
+- [x] **X** module `roles` + `permissions` — ADMIN only; chặn xoá role hệ thống
+- [x] **X** Rate limit `/auth/login` (vd 10 req/5min/IP)
+- [x] **X** Tests: **TC01**, **TC02**, **TC09** + refresh rotation, change-password, locked user, user CRUD authz
 
 ### Frontend — Claude
-- [ ] **C** `AuthContext` + `useAuth` — login/logout/refresh, persist token, hydrate `/auth/me`
-- [ ] **C** Page: Login, Register, Forgot password, Reset password (AuthLayout, validation đầy đủ); dev mode cho phép paste `reset_token` vào Reset page
-- [ ] **C** Route guard thật: redirect theo role sau login (ADMIN/STAFF → `/admin`, CUSTOMER → `/`)
-- [ ] **C** Admin: User list (filter role/status/search), Create/Edit modal, Lock/Unlock (confirm), Reset password
-- [ ] **C** Admin: Role list + gán permission (transfer/checkbox group)
-- [ ] **C** Profile page + Change password (customer & admin dùng chung component)
-- [ ] **C** Ẩn menu theo role; 403 page
-- [ ] **C** Vitest: guard redirect, login form validation
+- [x] **C** `AuthContext` + `useAuth` — login/logout/refresh, persist token, hydrate `/auth/me`
+- [x] **C** Page: Login, Register, Forgot password, Reset password (AuthLayout, validation đầy đủ); dev mode cho phép paste `reset_token` vào Reset page
+- [x] **C** Route guard thật: redirect theo role sau login (ADMIN/STAFF → `/admin`, CUSTOMER → `/`)
+- [x] **C** Admin: User list (filter role/status/search), Create/Edit modal, Lock/Unlock (confirm), Reset password
+- [x] **C** Admin: Role list + gán permission (transfer/checkbox group)
+- [x] **C** Profile page + Change password (customer & admin dùng chung component)
+- [x] **C** Ẩn menu theo role; 403 page
+- [x] **C** Vitest: guard redirect, login form validation
 
 ### Gate W2 — Claude
-- [ ] **C** TC01/TC02/TC09 pass trên BE test; verify lại bằng UI
-- [ ] **C** 3 role login → vào đúng portal; STAFF không thấy menu Users/Roles **và** API trả 403
-- [ ] **C** Không response nào chứa `password_hash`
+- [x] **C** TC01/TC02/TC09 pass trên BE test; verify lại bằng UI
+- [x] **C** 3 role login → vào đúng portal; STAFF không thấy menu Users/Roles **và** API trả 403
+- [x] **C** Không response nào chứa `password_hash`
 
 ---
 
 ## W3 — M4 Catalog (Brand, Category, Product, Variant, Image)
-*Dependency: W2*
+*Dependency: W2 ✅ — sẵn sàng start*
 
 ### Backend — Codex
 - [ ] **X** module `brands` — CRUD, slug auto, soft delete, chặn xoá khi còn product (409)

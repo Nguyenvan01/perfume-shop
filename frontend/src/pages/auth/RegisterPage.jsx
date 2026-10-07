@@ -1,5 +1,5 @@
-import PlaceholderPage from '../../components/PlaceholderPage';
+import RegisterForm from '../../features/auth/components/RegisterForm';
 
 export default function RegisterPage() {
-  return <PlaceholderPage title="Đăng ký" subtitle="Tạo tài khoản khách hàng" milestone="M3 — Auth & User" />;
+  return <RegisterForm />;
 }

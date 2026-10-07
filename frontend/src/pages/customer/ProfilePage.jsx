@@ -1,5 +1,5 @@
-import PlaceholderPage from '../../components/PlaceholderPage';
+import ProfileView from '../../features/auth/components/ProfileView';
 
 export default function ProfilePage() {
-  return <PlaceholderPage title="Hồ sơ của tôi" subtitle="Thông tin cá nhân và đổi mật khẩu" milestone="M3 — Auth & User" />;
+  return <ProfileView />;
 }

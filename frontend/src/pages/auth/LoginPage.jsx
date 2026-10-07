@@ -1,5 +1,5 @@
-import PlaceholderPage from '../../components/PlaceholderPage';
+import LoginForm from '../../features/auth/components/LoginForm';
 
 export default function LoginPage() {
-  return <PlaceholderPage title="Đăng nhập" subtitle="Truy cập hệ thống" milestone="M3 — Auth & User" />;
+  return <LoginForm />;
 }
