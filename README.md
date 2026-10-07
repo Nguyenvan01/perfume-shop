@@ -186,9 +186,9 @@ Tiền trả về dạng string (`Decimal`), ngày tháng ISO-8601. `meta` chỉ
 |---|---|---|
 | W1 | M1 Setup + M2 Schema | ✅ Xong — 23 model, migration, seed idempotent, `/health`, 3 layout, router |
 | W2 | M3 Auth / User / Role / Permission | ✅ Xong — JWT access+refresh có rotation, RBAC, user/role CRUD |
-| W3 | M4 Catalog (brand, category, product, variant, image) | ✅ Xong — CRUD đủ 5 resource, upload ảnh qua storage adapter, trang sản phẩm cho khách, 156 test pass |
-| W4 | M5 Inventory ∥ M6 Customer | Kế tiếp |
-| W5 | M7 Cart & Order (**MVP end-to-end**) | Chưa làm |
+| W3 | M4 Catalog (brand, category, product, variant, image) | ✅ Xong — CRUD đủ 5 resource, upload ảnh qua storage adapter, trang sản phẩm cho khách |
+| W4 | M5 Inventory ∥ M6 Customer | ✅ Xong — nhập/xuất/điều chỉnh kho có lịch sử đầy đủ, chống tồn kho âm và race condition, quản lý khách hàng, 208 test pass |
+| W5 | M7 Cart & Order (**MVP end-to-end**) | Kế tiếp |
 | W6 | M8 Promotion + M9 Dashboard | Chưa làm |
 | W7 | M10 Review + hardening + deploy | Chưa làm |
 

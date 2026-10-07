@@ -132,45 +132,45 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W4a — M5 Inventory  ∥  W4b — M6 Customer
-*Dependency: W3 ✅ — sẵn sàng start · W4a cần variants, W4b cần W2*
+## W4a — M5 Inventory  ∥  W4b — M6 Customer ✅
+*Dependency: W3 ✅ · Hoàn thành 2026-10-07 · gate đã pass (165 BE test + 43 FE test)*
 
 ### W4a Backend — Codex
-- [ ] **X** `inventory.repository` — list variant kèm product/brand, filter low-stock, summary aggregate
-- [ ] **X** `GET /inventory`, `GET /inventory/summary`, `GET /inventory/low-stock`
-- [ ] **X** `POST /inventory/import` — multi-item, 1 `$transaction`, ghi txn `IMPORT` với `stock_before/after`
-- [ ] **X** `POST /inventory/export` — chặn stock âm (422), ghi `EXPORT`
-- [ ] **X** `POST /inventory/adjustment` — ADMIN only, `note` bắt buộc, delta = `new_quantity - current`, ghi `ADJUSTMENT`
-- [ ] **X** `GET /inventory/transactions` — filter `variant_id/type/from/to`, pagination
-- [ ] **X** Atomic update chống race (`update where stock >= n` / `FOR UPDATE`)
-- [ ] **X** Tests: import/export/adjustment đúng stock + txn; export quá stock → 422; adjustment âm → 422; stock chưa bao giờ < 0
+- [x] **X** `inventory.repository` — list variant kèm product/brand, filter low-stock, summary aggregate
+- [x] **X** `GET /inventory`, `GET /inventory/summary`, `GET /inventory/low-stock`
+- [x] **X** `POST /inventory/import` — multi-item, 1 `$transaction`, ghi txn `IMPORT` với `stock_before/after`
+- [x] **X** `POST /inventory/export` — chặn stock âm (422), ghi `EXPORT`
+- [x] **X** `POST /inventory/adjustment` — ADMIN only, `note` bắt buộc, delta = `new_quantity - current`, ghi `ADJUSTMENT`
+- [x] **X** `GET /inventory/transactions` — filter `variant_id/type/from/to`, pagination
+- [x] **X** Atomic update chống race (`update where stock >= n` / `FOR UPDATE`)
+- [x] **X** Tests: import/export/adjustment đúng stock + txn; export quá stock → 422; adjustment âm → 422; stock chưa bao giờ < 0
 
 ### W4a Frontend — Claude
-- [ ] **C** Admin Inventory overview: table (SKU, product, volume, stock, low-stock tag), filter brand/category/low-stock, summary cards
-- [ ] **C** Modal Import stock (multi-row: chọn variant + quantity + note)
-- [ ] **C** Modal Export stock (hiện stock hiện tại, validate ≤ stock)
-- [ ] **C** Modal Adjustment (ADMIN only, hiện stock cũ → mới, note bắt buộc)
-- [ ] **C** Inventory transactions page: filter type/variant/date range, pagination, hiển thị `stock_before → stock_after`
-- [ ] **C** Low-stock widget (dùng lại ở Dashboard W6)
+- [x] **C** Admin Inventory overview: table (SKU, product, volume, stock, low-stock tag), filter brand/category/low-stock, summary cards
+- [x] **C** Modal Import stock (multi-row: chọn variant + quantity + note)
+- [x] **C** Modal Export stock (hiện stock hiện tại, validate ≤ stock)
+- [x] **C** Modal Adjustment (ADMIN only, hiện stock cũ → mới, note bắt buộc)
+- [x] **C** Inventory transactions page: filter type/variant/date range, pagination, hiển thị `stock_before → stock_after`
+- [x] **C** Low-stock widget (dùng lại ở Dashboard W6)
 
 ### W4b Backend — Codex
-- [ ] **X** module `customers` — list (search tên/email/phone, filter status, sort `total_spending`), detail + `recent_orders`, order history, `PATCH /:id/status` (ghi `users.status`)
-- [ ] **X** `total_orders`/`total_spending` — hàm tính lại từ order `COMPLETED` (dùng ở W5 khi order COMPLETED)
-- [ ] **X** Tests: authz STAFF xem được / lock là ADMIN only; search đúng
+- [x] **X** module `customers` — list (search tên/email/phone, filter status, sort `total_spending`), detail + `recent_orders`, order history, `PATCH /:id/status` (ghi `users.status`)
+- [x] **X** `total_orders`/`total_spending` — hàm tính lại từ order `COMPLETED` (dùng ở W5 khi order COMPLETED)
+- [x] **X** Tests: authz STAFF xem được / lock là ADMIN only; search đúng
 
 ### W4b Frontend — Claude
-- [ ] **C** Admin Customer list: search, filter status, cột tổng đơn/tổng chi, pagination
-- [ ] **C** Admin Customer detail: thông tin, KPI tổng đơn/chi, tab order history, Lock/Unlock (confirm)
+- [x] **C** Admin Customer list: search, filter status, cột tổng đơn/tổng chi, pagination
+- [x] **C** Admin Customer detail: thông tin, KPI tổng đơn/chi, tab order history, Lock/Unlock (confirm)
 
 ### Gate W4 — Claude
-- [ ] **C** Chạy script kiểm tra: `SUM(inventory_transactions.quantity)` per variant == `stock_quantity`
-- [ ] **C** Không có đường nào sửa stock mà không ghi txn (grep `stock_quantity` trong backend)
-- [ ] **C** Lock customer → login 403
+- [x] **C** Chạy script kiểm tra: `SUM(inventory_transactions.quantity)` per variant == `stock_quantity`
+- [x] **C** Không có đường nào sửa stock mà không ghi txn (grep `stock_quantity` trong backend)
+- [x] **C** Lock customer → login 403
 
 ---
 
 ## W5 — M7 Cart & Order (MVP core)
-*Dependency: W4a + W4b*
+*Dependency: W4a + W4b ✅ — sẵn sàng start*
 
 ### Backend — Codex
 - [ ] **X** module `carts`: `GET /cart` (auto-create), add item (cộng dồn, check stock → 422 **TC04**), update quantity, remove item, clear, `POST /cart/preview` (subtotal/discount/shipping/total + warnings nếu stock đổi)

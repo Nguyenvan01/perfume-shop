@@ -10,6 +10,8 @@ const brandRoute = require('../modules/brands/brand.route');
 const categoryRoute = require('../modules/categories/category.route');
 const productRoute = require('../modules/products/product.route');
 const variantRoute = require('../modules/product-variants/variant.route');
+const inventoryRoute = require('../modules/inventory/inventory.route');
+const customerRoute = require('../modules/customers/customer.route');
 
 const router = express.Router();
 
@@ -22,5 +24,7 @@ router.use('/brands', brandRoute);
 router.use('/categories', categoryRoute);
 router.use('/products', productRoute);
 router.use('/variants', variantRoute);
+router.use('/inventory', inventoryRoute);
+router.use('/customers', customerRoute);
 
 module.exports = router;
