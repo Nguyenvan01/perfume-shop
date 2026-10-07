@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const env = require('../src/config/env');
 const { prisma } = require('../src/config/database');
 const { slugify } = require('../src/utils/slug');
+const { writePlaceholderImage } = require('./placeholderImage');
 
 const RESOURCES = [
   'user',
@@ -266,6 +267,7 @@ async function seedCatalog(adminUserId) {
   }
 
   let variantCount = 0;
+  let imageCount = 0;
   for (const def of PRODUCTS) {
     const slug = slugify(def.name);
     const product = await prisma.product.upsert({
@@ -337,9 +339,40 @@ async function seedCatalog(adminUserId) {
       }
       variantCount += 1;
     }
+
+    // Ảnh placeholder tự sinh (W3): 1 ảnh / variant, ảnh của variant nhỏ nhất
+    // làm ảnh chính. Không dùng ảnh có bản quyền từ site khác.
+    const existingImages = await prisma.productImage.count({ where: { product_id: product.id } });
+    if (existingImages === 0) {
+      const rows = [];
+      for (const [index, v] of def.variants.entries()) {
+        const sku = `${def.skuPrefix}-${v.volume_ml}`;
+        const image = await writePlaceholderImage({
+          brandName: def.brand,
+          productName: def.name,
+          volumeMl: v.volume_ml,
+          sku,
+        });
+        rows.push({
+          product_id: product.id,
+          image_url: image.url,
+          public_id: image.public_id,
+          is_primary: index === 0,
+          sort_order: index,
+        });
+      }
+      await prisma.productImage.createMany({ data: rows });
+      imageCount += rows.length;
+    }
   }
 
-  return { brandCount: Object.keys(brands).length, categoryCount: Object.keys(categories).length, productCount: PRODUCTS.length, variantCount };
+  return {
+    brandCount: Object.keys(brands).length,
+    categoryCount: Object.keys(categories).length,
+    productCount: PRODUCTS.length,
+    variantCount,
+    imageCount,
+  };
 }
 
 async function seedPromotions() {
@@ -392,7 +425,7 @@ async function main() {
 
   const catalog = await seedCatalog(users.ADMIN.id);
   log(
-    `[seed] brands: ${catalog.brandCount}, categories: ${catalog.categoryCount}, products: ${catalog.productCount}, variants: ${catalog.variantCount}`
+    `[seed] brands: ${catalog.brandCount}, categories: ${catalog.categoryCount}, products: ${catalog.productCount}, variants: ${catalog.variantCount}, images: ${catalog.imageCount}`
   );
 
   const promotionCount = await seedPromotions();

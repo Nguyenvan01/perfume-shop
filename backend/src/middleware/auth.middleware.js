@@ -36,10 +36,14 @@ async function authenticate(req, _res, next) {
   }
 }
 
-/** Gắn req.user nếu có token hợp lệ, nhưng không chặn khi thiếu token. */
-async function optionalAuthenticate(req, _res, next) {
+/**
+ * Gắn req.user nếu có token dùng được, nhưng KHÔNG chặn request.
+ * Token thiếu / hết hạn / của user bị khóa đều bị bỏ qua im lặng — endpoint
+ * public (danh sách sản phẩm…) không được 401 chỉ vì access token vừa hết hạn.
+ */
+async function optionalAuthenticate(req, res, next) {
   if (!extractToken(req)) return next();
-  return authenticate(req, _res, (error) => next(error instanceof AppError ? null : error));
+  return authenticate(req, res, () => next());
 }
 
 module.exports = { authenticate, optionalAuthenticate };

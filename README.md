@@ -185,9 +185,9 @@ Tiền trả về dạng string (`Decimal`), ngày tháng ISO-8601. `meta` chỉ
 | Wave | Milestone | Trạng thái |
 |---|---|---|
 | W1 | M1 Setup + M2 Schema | ✅ Xong — 23 model, migration, seed idempotent, `/health`, 3 layout, router |
-| W2 | M3 Auth / User / Role / Permission | ✅ Xong — JWT access+refresh có rotation, RBAC, user/role CRUD, 101 test pass |
-| W3 | M4 Catalog (brand, category, product, variant, image) | Kế tiếp |
-| W4 | M5 Inventory ∥ M6 Customer | Chưa làm |
+| W2 | M3 Auth / User / Role / Permission | ✅ Xong — JWT access+refresh có rotation, RBAC, user/role CRUD |
+| W3 | M4 Catalog (brand, category, product, variant, image) | ✅ Xong — CRUD đủ 5 resource, upload ảnh qua storage adapter, trang sản phẩm cho khách, 156 test pass |
+| W4 | M5 Inventory ∥ M6 Customer | Kế tiếp |
 | W5 | M7 Cart & Order (**MVP end-to-end**) | Chưa làm |
 | W6 | M8 Promotion + M9 Dashboard | Chưa làm |
 | W7 | M10 Review + hardening + deploy | Chưa làm |

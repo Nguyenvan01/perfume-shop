@@ -1,5 +1,14 @@
-import PlaceholderPage from '../../components/PlaceholderPage';
+import { categoriesApi } from '../../api/catalog';
+import TaxonomyPage from '../../features/catalog/components/TaxonomyPage';
 
 export default function CategoriesPage() {
-  return <PlaceholderPage title="Quản lý danh mục" subtitle="CRUD danh mục" milestone="M4 — Catalog" />;
+  return (
+    <TaxonomyPage
+      title="Quản lý danh mục"
+      subtitle="Nhóm sản phẩm theo đối tượng và loại"
+      entityLabel="danh mục"
+      api={categoriesApi}
+      queryKey="categories"
+    />
+  );
 }

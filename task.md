@@ -100,40 +100,40 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## W3 — M4 Catalog (Brand, Category, Product, Variant, Image)
-*Dependency: W2 ✅ — sẵn sàng start*
+## W3 — M4 Catalog (Brand, Category, Product, Variant, Image) ✅
+*Dependency: W2 ✅ · Hoàn thành 2026-10-07 · gate đã pass (118 BE test + 38 FE test)*
 
 ### Backend — Codex
-- [ ] **X** module `brands` — CRUD, slug auto, soft delete, chặn xoá khi còn product (409)
-- [ ] **X** module `categories` — như trên
-- [ ] **X** module `products` — CRUD, `GET /products/:id` nhận id **hoặc** slug, filter `q/brand_id/category_id/gender/concentration/min_price/max_price/in_stock/status`, sort, pagination, tính `price_range` + `total_stock`, tránh N+1 (`include` variants/images/brand/category)
-- [ ] **X** Public list chỉ trả `status=ACTIVE` + `deleted_at IS NULL`; admin thấy tất cả
-- [ ] **X** module `product-variants` — CRUD, SKU unique (409), `@@unique(product_id, volume_ml)`, chặn xoá khi đã nằm trong order; **không** cho sửa `stock_quantity`
-- [ ] **X** module `product-images` — multer memory, validate type/size, upload storage adapter, set primary, delete (xoá cả remote)
-- [ ] **X** `utils/storage.service.js` — interface cố định `upload(buffer, filename, folder) → {url, public_id}` / `destroy(public_id)`; driver chọn theo env `STORAGE_DRIVER=local|cloudinary` (OD-5)
-- [ ] **X** Driver `local`: ghi `backend/uploads/`, serve qua `express.static('/uploads')`; driver `cloudinary`: stream upload. **Module `product-images` không được biết driver nào đang dùng**
-- [ ] **X** Tests: **TC03** + slug/SKU conflict, filter/pagination, authz (CUSTOMER POST product → 403), upload invalid file
+- [x] **X** module `brands` — CRUD, slug auto, soft delete, chặn xoá khi còn product (409)
+- [x] **X** module `categories` — như trên
+- [x] **X** module `products` — CRUD, `GET /products/:id` nhận id **hoặc** slug, filter `q/brand_id/category_id/gender/concentration/min_price/max_price/in_stock/status`, sort, pagination, tính `price_range` + `total_stock`, tránh N+1 (`include` variants/images/brand/category)
+- [x] **X** Public list chỉ trả `status=ACTIVE` + `deleted_at IS NULL`; admin thấy tất cả
+- [x] **X** module `product-variants` — CRUD, SKU unique (409), `@@unique(product_id, volume_ml)`, chặn xoá khi đã nằm trong order; **không** cho sửa `stock_quantity`
+- [x] **X** module `product-images` — multer memory, validate type/size, upload storage adapter, set primary, delete (xoá cả remote)
+- [x] **X** `utils/storage.service.js` — interface cố định `upload(buffer, filename, folder) → {url, public_id}` / `destroy(public_id)`; driver chọn theo env `STORAGE_DRIVER=local|cloudinary` (OD-5)
+- [x] **X** Driver `local`: ghi `backend/uploads/`, serve qua `express.static('/uploads')`; driver `cloudinary`: stream upload. **Module `product-images` không được biết driver nào đang dùng**
+- [x] **X** Tests: **TC03** + slug/SKU conflict, filter/pagination, authz (CUSTOMER POST product → 403), upload invalid file
 
 ### Frontend — Claude
-- [ ] **C** Admin Brand: table + create/edit modal + upload logo + delete confirm
-- [ ] **C** Admin Category: table + create/edit modal + delete confirm
-- [ ] **C** Admin Product list: search, filter brand/category/gender/status, pagination, cột `price_range`/`total_stock`
-- [ ] **C** Admin Product create/edit: form (brand/category select, gender, concentration, fragrance family, description) + variant sub-table (inline add/edit, SKU, volume, price, sale price) + image uploader (multi, set primary, remove)
-- [ ] **C** Admin Product detail (read-only + variant/image/stock)
-- [ ] **C** Customer Home: banner, brand strip, sản phẩm mới, sản phẩm nổi bật
-- [ ] **C** Customer Product list: filter sidebar (brand, category, gender, concentration, price range, in-stock), sort, pagination, loading skeleton + empty state
-- [ ] **C** Customer Product detail: gallery, chọn variant (giá đổi theo variant), badge hết hàng, nút Add to cart (disabled nếu chưa login — chuẩn bị cho W5)
-- [ ] **C** Customer Search result page
+- [x] **C** Admin Brand: table + create/edit modal + upload logo + delete confirm
+- [x] **C** Admin Category: table + create/edit modal + delete confirm
+- [x] **C** Admin Product list: search, filter brand/category/gender/status, pagination, cột `price_range`/`total_stock`
+- [x] **C** Admin Product create/edit: form (brand/category select, gender, concentration, fragrance family, description) + variant sub-table (inline add/edit, SKU, volume, price, sale price) + image uploader (multi, set primary, remove)
+- [x] **C** Admin Product detail (read-only + variant/image/stock)
+- [x] **C** Customer Home: banner, brand strip, sản phẩm mới, sản phẩm nổi bật
+- [x] **C** Customer Product list: filter sidebar (brand, category, gender, concentration, price range, in-stock), sort, pagination, loading skeleton + empty state
+- [x] **C** Customer Product detail: gallery, chọn variant (giá đổi theo variant), badge hết hàng, nút Add to cart (disabled nếu chưa login — chuẩn bị cho W5)
+- [x] **C** Customer Search result page
 
 ### Gate W3 — Claude
-- [ ] **C** TC03 pass; admin CRUD đủ 5 resource; customer browse + filter đúng
-- [ ] **C** Verify không N+1 (log query khi list 10 product)
-- [ ] **C** Review: response khớp `ProductDTO` trong plan §2
+- [x] **C** TC03 pass; admin CRUD đủ 5 resource; customer browse + filter đúng
+- [x] **C** Verify không N+1 (log query khi list 10 product)
+- [x] **C** Review: response khớp `ProductDTO` trong plan §2
 
 ---
 
 ## W4a — M5 Inventory  ∥  W4b — M6 Customer
-*Dependency: W4a cần W3 (variants); W4b cần W2*
+*Dependency: W3 ✅ — sẵn sàng start · W4a cần variants, W4b cần W2*
 
 ### W4a Backend — Codex
 - [ ] **X** `inventory.repository` — list variant kèm product/brand, filter low-stock, summary aggregate

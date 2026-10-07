@@ -21,3 +21,12 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// AntD (Typography ellipsis, Table scroll) cần ResizeObserver — jsdom chưa có.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

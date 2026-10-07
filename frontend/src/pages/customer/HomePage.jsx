@@ -1,89 +1,135 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Col, Flex, Row, Statistic, Tag, Typography } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { healthApi } from '../../api/health';
-import { ErrorState, LoadingState } from '../../components';
+import { Button, Card, Col, Flex, Row, Typography } from 'antd';
+import { ArrowRightOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
+import { productsApi, brandsApi } from '../../api/catalog';
+import { LoadingState, ErrorState, EmptyState } from '../../components';
+import { resolveImageUrl } from '../../utils/imageUrl';
+import ProductCard from '../../features/products/components/ProductCard';
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-/**
- * Trang chủ W1 — hiển thị kết quả gọi GET /health để xác nhận FE ↔ BE đã nối được
- * (Definition of Done của M1). M4 sẽ thay bằng banner + danh sách sản phẩm thật.
- */
+function ProductSection({ title, subtitle, query, moreLink }) {
+  return (
+    <Flex vertical gap={16}>
+      <Flex justify="space-between" align="flex-end" wrap gap={8}>
+        <div>
+          <Title level={3} style={{ margin: 0 }}>
+            {title}
+          </Title>
+          {subtitle && <Text type="secondary">{subtitle}</Text>}
+        </div>
+        {moreLink && (
+          <Link to={moreLink}>
+            <Button type="link" icon={<ArrowRightOutlined />} iconPosition="end">
+              Xem tất cả
+            </Button>
+          </Link>
+        )}
+      </Flex>
+
+      {query.isPending && <LoadingState tip="Đang tải sản phẩm..." />}
+      {query.isError && <ErrorState error={query.error} onRetry={query.refetch} />}
+      {query.isSuccess &&
+        (query.data.items.length === 0 ? (
+          <EmptyState description="Chưa có sản phẩm nào" />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {query.data.items.map((product) => (
+              <Col key={product.id} xs={12} sm={12} md={8} lg={6}>
+                <ProductCard product={product} />
+              </Col>
+            ))}
+          </Row>
+        ))}
+    </Flex>
+  );
+}
+
 export default function HomePage() {
-  const healthQuery = useQuery({
-    queryKey: ['health'],
-    queryFn: healthApi.check,
-    retry: 1,
+  const newestQuery = useQuery({
+    queryKey: ['products', 'home', 'newest'],
+    queryFn: () => productsApi.list({ limit: 8, sort: 'created_at:desc' }),
+  });
+
+  const inStockQuery = useQuery({
+    queryKey: ['products', 'home', 'in-stock'],
+    queryFn: () => productsApi.list({ limit: 4, in_stock: 'true', sort: 'price:asc' }),
+  });
+
+  const brandsQuery = useQuery({
+    queryKey: ['brands', 'home'],
+    queryFn: () => brandsApi.list({ limit: 12, status: 'ACTIVE' }),
   });
 
   return (
-    <Flex vertical gap={24}>
-      <Card>
-        <Title level={2} style={{ marginTop: 0 }}>
-          Perfume Shop Management System
-        </Title>
-        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          Hệ thống quản lý shop nước hoa: quản lý sản phẩm theo dung tích, SKU, nhập – xuất – tồn,
-          vòng đời đơn hàng và báo cáo từ dữ liệu thật.
-        </Paragraph>
+    <Flex vertical gap={40}>
+      <Card
+        styles={{ body: { padding: '48px 32px' } }}
+        style={{ background: 'linear-gradient(135deg, #2d2d3a 0%, #8c5a3b 100%)', border: 'none' }}
+      >
+        <Flex vertical gap={16} style={{ maxWidth: 620 }}>
+          <Title level={1} style={{ color: '#fff', margin: 0 }}>
+            Nước hoa chính hãng
+          </Title>
+          <Paragraph style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16, margin: 0 }}>
+            Chọn đúng dung tích bạn cần — từ chai mini 30ml dùng thử đến 200ml dùng lâu dài. Mỗi
+            dung tích có mã SKU và tồn kho riêng.
+          </Paragraph>
+          <Flex gap={12} wrap>
+            <Link to="/products">
+              <Button type="primary" size="large">
+                Xem sản phẩm
+              </Button>
+            </Link>
+            <Link to="/products?in_stock=true">
+              <Button size="large" ghost>
+                Hàng có sẵn
+              </Button>
+            </Link>
+          </Flex>
+        </Flex>
       </Card>
 
-      <Card title="Kết nối backend">
-        {healthQuery.isPending && <LoadingState tip="Đang kiểm tra kết nối..." />}
+      {brandsQuery.isSuccess && brandsQuery.data.items.length > 0 && (
+        <Flex vertical gap={16}>
+          <Title level={4} style={{ margin: 0 }}>
+            Thương hiệu
+          </Title>
+          <Flex gap={12} wrap>
+            {brandsQuery.data.items.map((brand) => (
+              <Link key={brand.id} to={`/products?brand_id=${brand.id}`}>
+                <Card size="small" hoverable style={{ minWidth: 120, textAlign: 'center' }}>
+                  <Flex vertical align="center" gap={8}>
+                    {brand.logo_url ? (
+                      <img
+                        src={resolveImageUrl(brand.logo_url)}
+                        alt={brand.name}
+                        style={{ height: 32, objectFit: 'contain' }}
+                      />
+                    ) : null}
+                    <Text strong>{brand.name}</Text>
+                  </Flex>
+                </Card>
+              </Link>
+            ))}
+          </Flex>
+        </Flex>
+      )}
 
-        {healthQuery.isError && (
-          <ErrorState
-            title="Không kết nối được backend"
-            error={healthQuery.error}
-            onRetry={healthQuery.refetch}
-          />
-        )}
+      <ProductSection
+        title="Sản phẩm mới"
+        subtitle="Vừa được thêm vào danh mục"
+        query={newestQuery}
+        moreLink="/products"
+      />
 
-        {healthQuery.isSuccess && (
-          <Row gutter={[16, 16]}>
-            <Col xs={12} md={6}>
-              <Statistic
-                title="Trạng thái"
-                valueRender={() => (
-                  <Tag
-                    color={healthQuery.data.status === 'ok' ? 'green' : 'orange'}
-                    icon={
-                      healthQuery.data.status === 'ok' ? (
-                        <CheckCircleOutlined />
-                      ) : (
-                        <CloseCircleOutlined />
-                      )
-                    }
-                  >
-                    {healthQuery.data.status}
-                  </Tag>
-                )}
-              />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic
-                title="Database"
-                valueRender={() => (
-                  <Tag color={healthQuery.data.db === 'up' ? 'green' : 'red'}>
-                    {healthQuery.data.db}
-                  </Tag>
-                )}
-              />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic title="Uptime (giây)" value={healthQuery.data.uptime} />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic title="API version" value={healthQuery.data.version} />
-            </Col>
-          </Row>
-        )}
-
-        <Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
-          Màn hình trang chủ thật được triển khai ở M4 — Catalog.
-        </Text>
-      </Card>
+      <ProductSection
+        title="Hàng có sẵn, giá tốt"
+        subtitle="Còn tồn kho, giao được ngay"
+        query={inStockQuery}
+        moreLink="/products?in_stock=true"
+      />
     </Flex>
   );
 }

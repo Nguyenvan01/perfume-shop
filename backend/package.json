@@ -2,7 +2,7 @@
   "name": "perfume-shop-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Perfume Shop Management System \u2014 REST API",
+  "description": "Perfume Shop Management System — REST API",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -23,6 +23,7 @@
   "dependencies": {
     "@prisma/client": "^6.1.0",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
