@@ -34,11 +34,15 @@ const TABLES_CHILD_FIRST = [
 ];
 
 async function truncateAll() {
-  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
-  for (const table of TABLES_CHILD_FIRST) {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``);
-  }
-  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+  // FOREIGN_KEY_CHECKS là biến theo session: phải chạy mọi lệnh trên cùng 1 connection,
+  // nếu không pool có thể đưa TRUNCATE sang connection vẫn bật FK check → lỗi 1701.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+    for (const table of TABLES_CHILD_FIRST) {
+      await tx.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``);
+    }
+    await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+  }, { timeout: 30_000 }); // 22 lệnh TRUNCATE có thể vượt timeout mặc định 5s
 }
 
 global.truncateAll = truncateAll;
