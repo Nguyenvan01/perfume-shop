@@ -24,8 +24,15 @@ const findByProduct = (product_id) =>
 
 const findById = (id) => prisma.productVariant.findUnique({ where: { id }, select: VARIANT_SELECT });
 
+/**
+ * SKU trùng không phân biệt hoa/thường ("abc-1" = "ABC-1") — giữ đúng hành vi unique index
+ * của MySQL collation *_ci trước đây; PostgreSQL unique index thì phân biệt hoa/thường.
+ */
 const findBySku = (sku) =>
-  prisma.productVariant.findUnique({ where: { sku }, select: { id: true } });
+  prisma.productVariant.findFirst({
+    where: { sku: { equals: sku, mode: 'insensitive' } },
+    select: { id: true },
+  });
 
 const findByProductAndVolume = (product_id, volume_ml) =>
   prisma.productVariant.findUnique({

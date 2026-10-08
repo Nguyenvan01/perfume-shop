@@ -33,8 +33,23 @@ if (!databaseUrl) {
   );
 }
 
+if (!/^postgres(ql)?:\/\//.test(databaseUrl)) {
+  throw new Error('DATABASE_URL must be a PostgreSQL connection string (postgresql://...)');
+}
+
+/**
+ * DIRECT_URL: kết nối không qua pooler, Prisma Migrate dùng (schema.prisma `directUrl`).
+ * Supabase: DATABASE_URL đi qua pgbouncer (6543), DIRECT_URL là cổng direct/session (5432).
+ * Local không có pooler → mặc định bằng DATABASE_URL. Ở test PHẢI trỏ sang DB test,
+ * nếu không `migrate deploy` của DB test sẽ chạy nhầm lên DB dev.
+ */
+const directUrl = isTest
+  ? process.env.DIRECT_URL_TEST || databaseUrl
+  : process.env.DIRECT_URL || databaseUrl;
+
 // Prisma luôn đọc DATABASE_URL — ở môi trường test ta trỏ nó sang DB test.
 process.env.DATABASE_URL = databaseUrl;
+process.env.DIRECT_URL = directUrl;
 
 const missing = REQUIRED.filter((key) => !process.env[key]);
 if (missing.length > 0) {
@@ -49,6 +64,7 @@ const env = {
   PORT: readNumber('PORT', 4000),
 
   DATABASE_URL: databaseUrl,
+  DIRECT_URL: directUrl,
 
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,

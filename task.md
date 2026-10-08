@@ -5,7 +5,7 @@ Contract và schema: xem `implementation_plan.md`. Chưa start wave nào — ch�
 
 Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
-**Decisions đã chốt (plan §6):** repo giữ nguyên tại root · MySQL qua Docker Compose (port **3307**) · storage adapter local trước, Cloudinary sau · refresh token ở `localStorage` · không gửi email thật · shipping fee phẳng từ env · voucher 1 lần/khách · không payment online · UI tiếng Việt · `main`+`develop` · deploy sau W7.
+**Decisions đã chốt (plan §6):** repo giữ nguyên tại root · **PostgreSQL (Supabase ở prod, Docker `postgres:16` port 5434 ở dev — OD-13, 2026-10-08; thay MySQL/3307)** · storage adapter local trước, Cloudinary sau · refresh token ở `localStorage` · không gửi email thật · shipping fee phẳng từ env · voucher 1 lần/khách · không payment online · UI tiếng Việt · `main`+`develop` · deploy sau W7.
 
 ---
 
@@ -259,7 +259,10 @@ Trạng thái: `[ ]` todo · `[~]` đang làm · `[x]` xong · `[!]` blocked
 
 ---
 
-## Deploy (sau W7, theo OD-12)
-- [ ] **X** Backend → Render/Railway + MySQL cloud, chạy migrate + seed
+## Deploy (sau W7, theo OD-12 + OD-13)
+- [x] **C** Chuyển toàn bộ dự án MySQL → PostgreSQL (schema, migration `init` mới, raw SQL, tìm kiếm không phân biệt hoa/thường, docker-compose)
+- [ ] **C** DB → Supabase Postgres: set `DATABASE_URL` (pooler 6543, `pgbouncer=true&connection_limit=1`) + `DIRECT_URL`, chạy `prisma migrate deploy` + seed
+- [ ] **C** Backend → Vercel serverless
+- [ ] **C** Images → Supabase Storage
 - [ ] **C** Frontend → Vercel, set `VITE_API_BASE_URL`
 - [ ] **C** Verify flow MVP trên môi trường online

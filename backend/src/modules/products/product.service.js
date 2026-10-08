@@ -99,7 +99,9 @@ async function assertSkusAvailable(variants) {
   if (!variants?.length) return;
 
   const skus = variants.map((variant) => variant.sku);
-  const duplicatesInPayload = skus.filter((sku, index) => skus.indexOf(sku) !== index);
+  // So trùng không phân biệt hoa/thường, nhất quán với kiểm tra trùng trong DB.
+  const normalized = skus.map((sku) => sku.toUpperCase());
+  const duplicatesInPayload = skus.filter((sku, index) => normalized.indexOf(sku.toUpperCase()) !== index);
   if (duplicatesInPayload.length > 0) {
     throw AppError.conflict(`Duplicated SKU in payload: ${[...new Set(duplicatesInPayload)].join(', ')}`);
   }

@@ -266,6 +266,38 @@ describe('TC03 — tạo product hợp lệ', () => {
     expect(res.body.message).toContain('EXISTING-SKU');
   });
 
+  it('SKU trùng khác hoa/thường vẫn là trùng → 409 (DB và trong payload)', async () => {
+    await createProduct({ variants: [{ sku: 'CASE-SKU', volume_ml: 100, price: 100000 }] });
+    const brand = await createBrand('B-case');
+    const category = await createCategory('C-case');
+    const base = {
+      brand_id: brand.id,
+      category_id: category.id,
+      gender: 'MALE',
+      concentration: 'EDP',
+    };
+
+    const inDb = await request(app)
+      .post(api('/products'))
+      .set(admin.authHeader)
+      .send({ ...base, name: 'SKU khác hoa thường', variants: [{ sku: 'case-sku', volume_ml: 50, price: 100000 }] });
+    expect(inDb.status).toBe(409);
+
+    const inPayload = await request(app)
+      .post(api('/products'))
+      .set(admin.authHeader)
+      .send({
+        ...base,
+        name: 'SKU payload hoa thường',
+        variants: [
+          { sku: 'MIX-SKU', volume_ml: 30, price: 100000 },
+          { sku: 'mix-sku', volume_ml: 50, price: 100000 },
+        ],
+      });
+    expect(inPayload.status).toBe(409);
+    expect(inPayload.body.message).toContain('Duplicated SKU');
+  });
+
   it('sale_price > price → 400', async () => {
     const brand = await createBrand('B3');
     const category = await createCategory('C3');
@@ -387,6 +419,14 @@ describe('GET /products — filter, sort, pagination', () => {
     expect(byBrandName.body.data.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('tìm q không phân biệt hoa/thường (PostgreSQL ILIKE)', async () => {
+    const lower = await request(app).get(api('/products?q=alpha'));
+    expect(lower.body.data.map((p) => p.name)).toEqual(['Alpha Nam EDP']);
+
+    const upper = await request(app).get(api('/products?q=ALPHA NAM'));
+    expect(upper.body.data.map((p) => p.name)).toEqual(['Alpha Nam EDP']);
+  });
+
   it('pagination trả meta đúng', async () => {
     const res = await request(app).get(api('/products?limit=1&page=2'));
     expect(res.body.data).toHaveLength(1);
@@ -408,6 +448,15 @@ describe('GET /products/:id — id hoặc slug', () => {
 
     const bySlug = await request(app).get(api(`/products/${byId.body.data.slug}`));
     expect(bySlug.body.data.id).toBe(product.id);
+  });
+
+  it('slug không phân biệt hoa/thường', async () => {
+    const product = await createProduct({ name: 'Slug Hoa Thuong' });
+    const slug = (await request(app).get(api(`/products/${product.id}`))).body.data.slug;
+
+    const res = await request(app).get(api(`/products/${slug.toUpperCase()}`));
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe(product.id);
   });
 
   it('product INACTIVE: khách 404, admin 200', async () => {
@@ -460,6 +509,12 @@ describe('Variants', () => {
       .send({ sku: 'DUP-100', volume_ml: 50, price: 100000 });
     expect(dupSku.status).toBe(409);
     expect(dupSku.body.message).toBe('SKU already exists');
+
+    const dupSkuOtherCase = await request(app)
+      .post(api(`/products/${product.id}/variants`))
+      .set(admin.authHeader)
+      .send({ sku: 'dup-100', volume_ml: 75, price: 100000 });
+    expect(dupSkuOtherCase.status).toBe(409);
 
     const dupVolume = await request(app)
       .post(api(`/products/${product.id}/variants`))

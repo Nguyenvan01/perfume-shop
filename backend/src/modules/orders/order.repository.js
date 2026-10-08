@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 
 const ORDER_DETAIL_SELECT = {
   id: true,
@@ -52,10 +53,10 @@ function buildWhere({ q, status, from, to, customer_id }) {
   if (customer_id) where.customer_id = customer_id;
   if (q) {
     where.OR = [
-      { order_code: { contains: q } },
-      { receiver_phone: { contains: q } },
-      { receiver_name: { contains: q } },
-      { customer: { user: { email: { contains: q } } } },
+      { order_code: containsInsensitive(q) },
+      { receiver_phone: containsInsensitive(q) },
+      { receiver_name: containsInsensitive(q) },
+      { customer: { user: { email: containsInsensitive(q) } } },
     ];
   }
   if (from || to) {

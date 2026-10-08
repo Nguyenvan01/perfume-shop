@@ -5,10 +5,10 @@ process.env.NODE_ENV = 'test';
 const { prisma } = require('../src/config/database');
 
 /**
- * Thứ tự truncate quan trọng: xoá bảng con trước bảng cha.
+ * Mọi bảng nghiệp vụ (không gồm `_prisma_migrations`).
  * Dùng cho test cần DB sạch; test đọc dữ liệu seed thì không gọi.
  */
-const TABLES_CHILD_FIRST = [
+const TABLES = [
   'promotion_usages',
   'order_details',
   'payments',
@@ -33,16 +33,14 @@ const TABLES_CHILD_FIRST = [
   'users',
 ];
 
+const TRUNCATE_SQL = `TRUNCATE TABLE ${TABLES.map((table) => `"${table}"`).join(', ')} RESTART IDENTITY CASCADE`;
+
+/**
+ * PostgreSQL: một lệnh TRUNCATE cho tất cả bảng — atomic, không cần tắt FK check,
+ * thứ tự bảng không quan trọng. RESTART IDENTITY reset sequence để id bắt đầu lại từ 1.
+ */
 async function truncateAll() {
-  // FOREIGN_KEY_CHECKS là biến theo session: phải chạy mọi lệnh trên cùng 1 connection,
-  // nếu không pool có thể đưa TRUNCATE sang connection vẫn bật FK check → lỗi 1701.
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
-    for (const table of TABLES_CHILD_FIRST) {
-      await tx.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``);
-    }
-    await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
-  }, { timeout: 30_000 }); // 22 lệnh TRUNCATE có thể vượt timeout mặc định 5s
+  await prisma.$executeRawUnsafe(TRUNCATE_SQL);
 }
 
 global.truncateAll = truncateAll;

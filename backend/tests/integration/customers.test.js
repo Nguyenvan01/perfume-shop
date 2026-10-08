@@ -75,6 +75,14 @@ describe('GET /customers', () => {
     expect(byEmail.body.data).toHaveLength(1);
   });
 
+  it('tìm không phân biệt hoa/thường', async () => {
+    const byName = await request(app).get(api('/customers?q=bình')).set(admin.authHeader);
+    expect(byName.body.data.map((c) => c.email)).toEqual(['binh@test.local']);
+
+    const byEmail = await request(app).get(api('/customers?q=BINH@TEST')).set(admin.authHeader);
+    expect(byEmail.body.data.map((c) => c.email)).toEqual(['binh@test.local']);
+  });
+
   it('filter theo status', async () => {
     const res = await request(app).get(api('/customers?status=LOCKED')).set(admin.authHeader);
     expect(res.body.data.map((c) => c.full_name)).toEqual(['Cường Trần']);

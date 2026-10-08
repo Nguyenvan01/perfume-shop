@@ -6,10 +6,13 @@ const env = require('../../config/env');
 const { OFFSET_HOURS } = require('../../utils/dateRange');
 
 /**
- * Offset là số nguyên từ env, đã qua readNumber() nên an toàn khi nội suy vào SQL.
- * Phải nội suy thay vì bind tham số: MySQL không nhận placeholder trong INTERVAL.
+ * Mốc giờ địa phương từ cột timestamp (lưu UTC, kiểu `timestamp(3)` không timezone).
+ * Offset bind như tham số (PostgreSQL nhận placeholder trong phép nhân interval);
+ * `float8` để giữ được offset lẻ như 5.5, khớp với utils/dateRange.
+ * `column` luôn là tên cột hằng trong file này, không đến từ input.
  */
-const TZ = Prisma.raw(String(Number(OFFSET_HOURS)));
+const localTime = (column) =>
+  Prisma.sql`(${Prisma.raw(column)} + ${Number(OFFSET_HOURS)}::float8 * INTERVAL '1 hour')`;
 
 /** Doanh thu chỉ tính đơn COMPLETED, mốc thời gian là lúc hoàn thành đơn. */
 async function completedRevenue({ from, to }) {
@@ -60,19 +63,21 @@ const countLowStock = () =>
  * về JS rồi cộng, để báo cáo vẫn nhanh khi dữ liệu lớn.
  */
 async function revenueSeries({ from, to, groupBy }) {
-  const period =
-    groupBy === 'month'
-      ? Prisma.sql`DATE_FORMAT(completed_at + INTERVAL ${TZ} HOUR, '%Y-%m')`
-      : Prisma.sql`DATE(completed_at + INTERVAL ${TZ} HOUR)`;
+  // Trả text 'YYYY-MM' / 'YYYY-MM-DD' ngay trong SQL — giống output cũ của MySQL
+  // (DATE_FORMAT / DATE), không phụ thuộc cách driver parse kiểu `date`.
+  const format = groupBy === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
+  const period = Prisma.sql`to_char(${localTime('completed_at')}, ${format})`;
 
+  // GROUP BY/ORDER BY theo vị trí cột (1): biểu thức có tham số bind, PostgreSQL
+  // không coi hai lần xuất hiện của `$n` là cùng một biểu thức.
   return prisma.$queryRaw`
     SELECT ${period} AS period,
            COALESCE(SUM(total_amount), 0) AS revenue,
            COUNT(*) AS order_count
     FROM orders
     WHERE status = 'COMPLETED' AND completed_at >= ${from} AND completed_at < ${to}
-    GROUP BY period
-    ORDER BY period ASC
+    GROUP BY 1
+    ORDER BY 1 ASC
   `;
 }
 

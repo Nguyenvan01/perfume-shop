@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 
 const PROMOTION_SELECT = {
   id: true,
@@ -57,7 +58,7 @@ const notDeleted = {};
 
 function buildWhere({ q, status, active_only }, now = new Date()) {
   const where = { ...notDeleted };
-  if (q) where.OR = [{ code: { contains: q } }, { name: { contains: q } }];
+  if (q) where.OR = [{ code: containsInsensitive(q) }, { name: containsInsensitive(q) }];
   if (status) where.status = status;
   // active_only: đang hiệu lực NGAY LÚC NÀY, không chỉ status ACTIVE.
   if (active_only) {

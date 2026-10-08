@@ -1,26 +1,24 @@
-# MySQL cho môi trường dev (OD-4).
-# Port 3307 để không đụng MySQL cài sẵn trên máy (3306).
+# PostgreSQL cho môi trường dev — cùng engine với production (Supabase Postgres).
+# Port 5434: máy dev đã có Postgres Homebrew ở 5432 và PostgreSQL 18 (EDB installer) ở 5433.
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: perfume-mysql
+  postgres:
+    image: postgres:16
+    container_name: perfume-postgres
     restart: unless-stopped
     ports:
-      - "3307:3306"
+      - "5434:5432"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: perfume_shop
-      MYSQL_USER: perfume
-      MYSQL_PASSWORD: perfume
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      POSTGRES_USER: perfume
+      POSTGRES_PASSWORD: perfume
+      POSTGRES_DB: perfume_shop
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./backend/prisma/docker-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "pg_isready -U perfume -d perfume_shop"]
       interval: 5s
       timeout: 5s
       retries: 20
 
 volumes:
-  mysql_data:
+  postgres_data:

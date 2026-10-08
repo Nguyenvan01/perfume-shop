@@ -244,6 +244,35 @@ describe('GET /reports/revenue', () => {
     expect(res.body.data.series[0].period).toMatch(/^\d{4}-\d{2}$/);
   });
 
+  it('period gom theo ngày/tháng giờ Việt Nam (UTC+7), không theo UTC', async () => {
+    // 18:30 UTC ngày 10/3 = 01:30 ngày 11/3 giờ VN.
+    await createOrder({
+      customerId: customerRow.id,
+      totalAmount: 100_000,
+      createdAt: new Date('2026-03-10T18:30:00Z'),
+    });
+    // 17:30 UTC ngày 31/3 = 00:30 ngày 1/4 giờ VN → thuộc tháng 4.
+    await createOrder({
+      customerId: customerRow.id,
+      totalAmount: 200_000,
+      createdAt: new Date('2026-03-31T17:30:00Z'),
+    });
+
+    const range = 'range=custom&from=2026-03-01&to=2026-04-30';
+    const byDay = await request(app)
+      .get(api(`/reports/revenue?${range}&group_by=day`))
+      .set(admin.authHeader);
+    expect(byDay.body.data.series.map((row) => [row.period, row.order_count, Number(row.revenue)])).toEqual([
+      ['2026-03-11', 1, 100_000],
+      ['2026-04-01', 1, 200_000],
+    ]);
+
+    const byMonth = await request(app)
+      .get(api(`/reports/revenue?${range}&group_by=month`))
+      .set(admin.authHeader);
+    expect(byMonth.body.data.series.map((row) => row.period)).toEqual(['2026-03', '2026-04']);
+  });
+
   it('không có doanh thu → series rỗng', async () => {
     const res = await request(app).get(api('/reports/revenue')).set(admin.authHeader);
     expect(res.body.data.series).toEqual([]);
