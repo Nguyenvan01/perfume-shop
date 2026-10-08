@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App, Badge, Button, Card, Flex, Image, Upload } from 'antd';
 import { UploadOutlined, StarFilled, StarOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -23,16 +23,42 @@ export default function ProductImageUploader({ productId, images, onChanged }) {
     onChanged?.();
   };
 
+  // Số ảnh đã lưu trong lần bấm "Tải lên" hiện tại (để báo khi lỗi giữa chừng).
+  const savedCountRef = useRef(0);
+
+  /**
+   * Upload theo batch: mỗi batch thành công thì bỏ ngay các file đó khỏi `fileList`
+   * (theo `uid` của AntD — tên file có thể trùng), để bấm thử lại chỉ gửi phần còn lại.
+   */
   const uploadMutation = useMutation({
-    mutationFn: (files) => productImagesApi.upload(productId, files),
+    mutationFn: (items) => {
+      savedCountRef.current = 0;
+      // Map theo identity của File → uid, không dựa vào tên file.
+      const uidByFile = new Map(items.map((item) => [item.originFileObj ?? item, item.uid]));
+      return productImagesApi.upload(productId, [...uidByFile.keys()], {
+        onBatchUploaded: (batch) => {
+          savedCountRef.current += batch.length;
+          const doneUids = new Set(batch.map((file) => uidByFile.get(file)));
+          setFileList((prev) => prev.filter((item) => !doneUids.has(item.uid)));
+        },
+      });
+    },
     onSuccess: () => {
+      // File đã được bỏ khỏi `fileList` theo từng batch; ảnh chọn thêm trong lúc chờ vẫn giữ.
       notification.success({ message: 'Đã tải ảnh lên' });
-      setFileList([]);
       invalidate();
     },
-    onError: (error) => {
-      notification.error({ message: error.message });
-      // Upload chia nhiều batch: batch trước có thể đã lên → làm mới danh sách ảnh.
+    onError: (error, items) => {
+      const saved = savedCountRef.current;
+      if (saved > 0) {
+        notification.error({
+          message: `Đã lưu ${saved}/${items.length} ảnh, ${items.length - saved} ảnh chưa tải lên được`,
+          description: `${error.message} Các ảnh còn lại vẫn nằm trong danh sách — bấm tải lên để thử lại.`,
+        });
+      } else {
+        notification.error({ message: error.message });
+      }
+      // Batch trước có thể đã lên → làm mới danh sách ảnh.
       invalidate();
     },
   });
@@ -90,9 +116,7 @@ export default function ProductImageUploader({ productId, images, onChanged }) {
           <Button
             type="primary"
             loading={uploadMutation.isPending}
-            onClick={() =>
-              uploadMutation.mutate(fileList.map((item) => item.originFileObj ?? item))
-            }
+            onClick={() => uploadMutation.mutate(fileList)}
           >
             Tải {fileList.length} ảnh lên
           </Button>

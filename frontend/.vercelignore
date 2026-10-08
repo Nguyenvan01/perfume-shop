@@ -1,0 +1,12 @@
+# Không upload lên Vercel: secret local, thứ Vercel tự cài/tự build, và file chỉ dùng cho test.
+# `vite build` chỉ đi từ index.html → src/main.jsx nên không cần file test.
+.env
+.env.*
+!.env.example
+*.local
+node_modules/
+dist/
+coverage/
+src/test/
+*.test.js
+*.test.jsx

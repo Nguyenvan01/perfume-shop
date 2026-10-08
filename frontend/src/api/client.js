@@ -5,7 +5,23 @@ import { API_BASE_URL, MISSING_API_BASE_URL_MESSAGE } from './baseUrl';
 const BASE_URL = API_BASE_URL;
 
 /** Vercel chặn body > 4.5MB trước khi tới backend, trả 413 không theo envelope. */
-const PAYLOAD_TOO_LARGE_MESSAGE = 'Dữ liệu gửi lên quá lớn. Vui lòng gửi ít file hơn hoặc file nhỏ hơn.';
+export const PAYLOAD_TOO_LARGE_MESSAGE =
+  'Dữ liệu gửi lên quá lớn. Vui lòng gửi ít file hơn hoặc file nhỏ hơn.';
+
+export const NETWORK_ERROR_MESSAGE = 'Không kết nối được tới server. Vui lòng thử lại.';
+
+/**
+ * Khi frontend và backend khác origin, 413 của Vercel edge KHÔNG có header CORS → trình
+ * duyệt chặn response, axios chỉ thấy "Network Error" (không có `error.response`).
+ * Request upload file (FormData) mà mất response thì rất có thể là do vượt giới hạn dung lượng.
+ */
+export const UPLOAD_NETWORK_ERROR_MESSAGE =
+  'Không gửi được file lên server. Có thể dữ liệu vượt giới hạn dung lượng mỗi lần gửi ' +
+  'hoặc mất kết nối. Vui lòng thử lại với ít file hơn hoặc file nhỏ hơn.';
+
+function isFormDataBody(config) {
+  return typeof FormData !== 'undefined' && config?.data instanceof FormData;
+}
 
 /** Lỗi đã được chuẩn hoá từ envelope backend (implementation_plan.md §2). */
 export class ApiError extends Error {
@@ -78,9 +94,8 @@ apiClient.interceptors.response.use(
     const { response, config } = error;
 
     if (!response) {
-      return Promise.reject(
-        new ApiError({ message: 'Không kết nối được tới server. Vui lòng thử lại.', status: 0 })
-      );
+      const message = isFormDataBody(config) ? UPLOAD_NETWORK_ERROR_MESSAGE : NETWORK_ERROR_MESSAGE;
+      return Promise.reject(new ApiError({ message, status: 0 }));
     }
 
     const isAuthEndpoint = config?.url?.includes('/auth/login') || config?.url?.includes('/auth/refresh');
@@ -101,6 +116,7 @@ apiClient.interceptors.response.use(
     }
 
     const body = response.data || {};
+    // Cùng origin (hoặc proxy có CORS) thì vẫn đọc được 413 thật từ Vercel.
     const fallbackMessage =
       response.status === 413 ? PAYLOAD_TOO_LARGE_MESSAGE : 'Đã có lỗi xảy ra';
     return Promise.reject(

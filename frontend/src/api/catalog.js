@@ -39,8 +39,13 @@ export const productImagesApi = {
    * `files`: File[] — gửi multipart, không set Content-Type để browser tự thêm boundary.
    * Chia thành nhiều request tuần tự để mỗi body ≤ giới hạn 4.5MB của Vercel.
    * Backend trả danh sách ảnh đầy đủ của product → kết quả là response của batch cuối.
+   *
+   * `onBatchUploaded(batch, images)`: gọi sau MỖI batch đã lưu thành công (`batch` là
+   * đúng các phần tử của `files` vừa gửi). Batch sau lỗi thì các batch trước vẫn đã lưu
+   * trên server — caller dùng callback này để bỏ chúng khỏi hàng chờ, tránh upload lặp
+   * khi người dùng bấm thử lại.
    */
-  upload: async (productId, files, isPrimary = false) => {
+  upload: async (productId, files, { isPrimary = false, onBatchUploaded } = {}) => {
     let images = [];
     for (const [index, batch] of splitIntoUploadBatches(files).entries()) {
       const formData = new FormData();
@@ -49,6 +54,7 @@ export const productImagesApi = {
       images = await http
         .post(`/products/${productId}/images`, formData, { headers: { 'Content-Type': undefined } })
         .then((r) => r.data);
+      onBatchUploaded?.(batch, images);
     }
     return images;
   },
