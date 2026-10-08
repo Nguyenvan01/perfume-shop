@@ -22,14 +22,55 @@ function readNumber(key, fallback) {
   return parsed;
 }
 
-const databaseUrl = isTest
-  ? process.env.DATABASE_URL_TEST || process.env.DATABASE_URL
-  : process.env.DATABASE_URL;
+/**
+ * Định danh một database: host (localhost ≡ 127.0.0.1 ≡ ::1) + tên DB. Bỏ qua port,
+ * user/password, query — Supabase trỏ cùng một DB qua cả cổng pooler 6543 lẫn 5432.
+ * So sánh "thừa" (khác port vẫn coi là trùng) là cố ý: an toàn hơn là bỏ sót.
+ */
+function databaseIdentity(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const normalizedHost = ['localhost', '127.0.0.1', '::1'].includes(host) ? 'localhost' : host;
+    return `${normalizedHost}/${decodeURIComponent(parsed.pathname.replace(/^\//, ''))}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * NODE_ENV=test: test suite TRUNCATE mọi bảng → chỉ được chạy trên DB test riêng.
+ * Không còn fallback sang DATABASE_URL: thiếu DATABASE_URL_TEST thì dừng ngay.
+ *
+ * env.js có thể được nạp lại nhiều lần trong cùng process (jest reset module registry
+ * mỗi test file) trong khi process.env.DATABASE_URL đã bị trỏ sang DB test ở lần nạp
+ * đầu → ghi nhớ URL gốc (non-test) để lần nạp sau vẫn so sánh đúng.
+ */
+const NON_TEST_URL_KEYS = { DATABASE_URL: 'NON_TEST_DATABASE_URL', DIRECT_URL: 'NON_TEST_DIRECT_URL' };
+if (isTest) {
+  for (const [key, stashKey] of Object.entries(NON_TEST_URL_KEYS)) {
+    if (process.env[stashKey] === undefined) process.env[stashKey] = process.env[key] || '';
+  }
+}
+
+function assertNotNonTestDatabase(testKey, testUrl) {
+  for (const stashKey of Object.values(NON_TEST_URL_KEYS)) {
+    const nonTestUrl = process.env[stashKey];
+    if (nonTestUrl && databaseIdentity(nonTestUrl) === databaseIdentity(testUrl)) {
+      throw new Error(
+        `${testKey} points to the same database as ${stashKey.replace('NON_TEST_', '')}. ` +
+          'Refusing to run: the test suite truncates every table.'
+      );
+    }
+  }
+}
+
+const databaseUrl = isTest ? process.env.DATABASE_URL_TEST : process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   throw new Error(
     isTest
-      ? 'Missing DATABASE_URL_TEST (or DATABASE_URL) for NODE_ENV=test'
+      ? 'Missing DATABASE_URL_TEST for NODE_ENV=test (no fallback to DATABASE_URL: the test suite truncates every table)'
       : 'Missing DATABASE_URL'
   );
 }
@@ -37,6 +78,8 @@ if (!databaseUrl) {
 if (!/^postgres(ql)?:\/\//.test(databaseUrl)) {
   throw new Error('DATABASE_URL must be a PostgreSQL connection string (postgresql://...)');
 }
+
+if (isTest) assertNotNonTestDatabase('DATABASE_URL_TEST', databaseUrl);
 
 /**
  * DIRECT_URL: kết nối không qua pooler, Prisma Migrate dùng (schema.prisma `directUrl`).
@@ -47,6 +90,10 @@ if (!/^postgres(ql)?:\/\//.test(databaseUrl)) {
 const directUrl = isTest
   ? process.env.DIRECT_URL_TEST || databaseUrl
   : process.env.DIRECT_URL || databaseUrl;
+
+if (isTest && process.env.DIRECT_URL_TEST) {
+  assertNotNonTestDatabase('DIRECT_URL_TEST', process.env.DIRECT_URL_TEST);
+}
 
 // Prisma luôn đọc DATABASE_URL — ở môi trường test ta trỏ nó sang DB test.
 process.env.DATABASE_URL = databaseUrl;
