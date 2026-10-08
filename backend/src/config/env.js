@@ -52,6 +52,40 @@ if (isVercel && STORAGE_DRIVER === 'local') {
   );
 }
 
+const LOCAL_SUPABASE_HOSTS = ['localhost', '127.0.0.1'];
+
+/**
+ * SUPABASE_URL phải là gốc project: https, không userinfo/query/fragment/path.
+ * http chỉ cho localhost/127.0.0.1 ngoài production (Supabase CLI chạy local).
+ * Message lỗi KHÔNG in lại giá trị (có thể chứa credential trong userinfo).
+ * @returns {string} origin đã chuẩn hóa, vd "https://<ref>.supabase.co"
+ */
+function parseSupabaseUrl(raw) {
+  const invalid = (reason) =>
+    new Error(`SUPABASE_URL ${reason}. Expected e.g. https://<project-ref>.supabase.co`);
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw invalid('is not a valid URL');
+  }
+  if (parsed.username || parsed.password) throw invalid('must not contain credentials');
+  // `new URL` bỏ "?"/"#" rỗng → kiểm tra cả chuỗi gốc.
+  if (parsed.search || parsed.hash || /[?#]/.test(raw)) {
+    throw invalid('must not contain a query string or fragment');
+  }
+  if (parsed.pathname !== '/') throw invalid('must be the project root URL, without a path');
+
+  const isLocalHttp =
+    parsed.protocol === 'http:' && LOCAL_SUPABASE_HOSTS.includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !(isLocalHttp && NODE_ENV !== 'production')) {
+    throw invalid('must use https (http is allowed only for localhost outside production)');
+  }
+  return parsed.origin;
+}
+
+let supabaseUrl = '';
 if (STORAGE_DRIVER === 'supabase') {
   // Chỉ in TÊN biến thiếu, không bao giờ in giá trị (service role key là bí mật).
   const missingStorage = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_STORAGE_BUCKET'].filter(
@@ -60,9 +94,7 @@ if (STORAGE_DRIVER === 'supabase') {
   if (missingStorage.length > 0) {
     throw new Error(`STORAGE_DRIVER=supabase but missing env: ${missingStorage.join(', ')}`);
   }
-  if (!/^https?:\/\/[^\s/]+/i.test(process.env.SUPABASE_URL)) {
-    throw new Error('SUPABASE_URL must be an http(s) URL, e.g. https://<project-ref>.supabase.co');
-  }
+  supabaseUrl = parseSupabaseUrl(process.env.SUPABASE_URL);
 }
 
 const env = {
@@ -96,7 +128,7 @@ const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
   // Supabase Storage (production trên Vercel). Service role key chỉ ở server.
-  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_URL: supabaseUrl || process.env.SUPABASE_URL || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET || '',
 

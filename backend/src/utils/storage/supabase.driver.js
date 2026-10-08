@@ -1,7 +1,6 @@
 'use strict';
 
 const crypto = require('crypto');
-const path = require('path');
 const AppError = require('../AppError');
 
 /**
@@ -23,6 +22,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 // Tên object là UUID ngẫu nhiên, không bao giờ bị ghi đè → cache lâu được.
 const CACHE_CONTROL = 'max-age=31536000';
 
+/** Chỉ nhận đúng các loại ảnh mà upload.middleware cho phép. */
 const EXTENSION_BY_MIMETYPE = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -31,24 +31,49 @@ const EXTENSION_BY_MIMETYPE = {
 
 const FOLDER_PATTERN = /^[a-z0-9_-]+(\/[a-z0-9_-]+)*$/i;
 const OBJECT_PATH_PATTERN = /^[a-z0-9_-]+(\/[a-z0-9_.-]+)*$/i;
+// Key legacy (anon/service_role) là JWT: 3 phần base64url ngăn bởi dấu chấm.
+const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
-function pickExtension(filename, mimetype) {
-  if (EXTENSION_BY_MIMETYPE[mimetype]) return EXTENSION_BY_MIMETYPE[mimetype];
-  const fromName = path.extname(filename || '').slice(1).toLowerCase();
-  return /^[a-z0-9]{1,8}$/.test(fromName) ? fromName : 'bin';
+/**
+ * Key mới `sb_secret_...` KHÔNG phải JWT: chỉ gửi qua header `apikey`; gửi kèm
+ * `Authorization: Bearer` sẽ bị gateway parse như JWT và từ chối (401).
+ * Key legacy service_role là JWT: gửi cả `apikey` lẫn Bearer như supabase-js.
+ */
+function buildAuthHeaders(key) {
+  const headers = { apikey: key };
+  if (!key.startsWith('sb_') && JWT_PATTERN.test(key)) {
+    headers.authorization = `Bearer ${key}`;
+  }
+  return headers;
 }
 
 /** Encode từng segment, giữ dấu "/" làm phân cách. */
 const encodePath = (objectPath) => objectPath.split('/').map(encodeURIComponent).join('/');
 
+/** Giải phóng body không dùng tới để không giữ connection. */
+async function discardBody(response) {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Không có gì để giải phóng.
+  }
+}
+
 /**
  * @param {object} config
- * @param {string} config.url              SUPABASE_URL, vd https://<ref>.supabase.co
+ * @param {string} config.url              SUPABASE_URL (đã validate ở config/env.js)
  * @param {string} config.serviceRoleKey   SUPABASE_SERVICE_ROLE_KEY (server-only)
  * @param {string} config.bucket           SUPABASE_STORAGE_BUCKET (public bucket)
  * @param {typeof fetch} [config.fetchImpl] inject để test
+ * @param {number} [config.timeoutMs]       timeout mỗi request
  */
-function createSupabaseDriver({ url, serviceRoleKey, bucket, fetchImpl } = {}) {
+function createSupabaseDriver({
+  url,
+  serviceRoleKey,
+  bucket,
+  fetchImpl,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+} = {}) {
   if (!url || !serviceRoleKey || !bucket) {
     throw new Error(
       'Supabase storage driver requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET'
@@ -58,18 +83,15 @@ function createSupabaseDriver({ url, serviceRoleKey, bucket, fetchImpl } = {}) {
   const baseUrl = url.replace(/\/+$/, '');
   const bucketSegment = encodeURIComponent(bucket);
   const doFetch = fetchImpl || ((...args) => globalThis.fetch(...args));
-  const authHeaders = {
-    apikey: serviceRoleKey,
-    authorization: `Bearer ${serviceRoleKey}`,
-  };
+  const authHeaders = buildAuthHeaders(serviceRoleKey);
 
   async function request(action, endpoint, init) {
     let response;
     try {
       response = await doFetch(endpoint, {
         ...init,
-        headers: { ...authHeaders, ...init.headers },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        headers: { ...init.headers, ...authHeaders },
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       // Lỗi mạng/timeout của fetch có thể mang theo chi tiết request → không chuyển tiếp.
@@ -77,45 +99,41 @@ function createSupabaseDriver({ url, serviceRoleKey, bucket, fetchImpl } = {}) {
       throw new AppError(502, `Storage ${action} failed: storage service ${reason}`);
     }
 
+    // Không đọc body (cả lỗi lẫn thành công): body lỗi có thể chứa chi tiết nội bộ.
+    await discardBody(response);
     if (!response.ok) {
-      // Không đọc body lỗi: có thể chứa chi tiết nội bộ của provider. Giải phóng stream.
-      try {
-        await response.body?.cancel();
-      } catch {
-        // Không có gì để giải phóng.
-      }
       throw new AppError(502, `Storage ${action} failed (${response.status})`);
     }
-
-    return response;
   }
 
   function publicUrl(objectPath) {
     return `${baseUrl}/storage/v1/object/public/${bucketSegment}/${encodePath(objectPath)}`;
   }
 
-  async function upload(buffer, { filename, folder = 'products', mimetype } = {}) {
+  async function upload(buffer, { folder = 'products', mimetype } = {}) {
+    const extension = EXTENSION_BY_MIMETYPE[mimetype];
+    if (!extension) {
+      throw AppError.badRequest(
+        `Unsupported image type. Allowed: ${Object.keys(EXTENSION_BY_MIMETYPE).join(', ')}`
+      );
+    }
     if (!FOLDER_PATTERN.test(folder)) {
       throw AppError.badRequest('Invalid storage folder');
     }
 
-    const objectPath = `${folder}/${crypto.randomUUID()}.${pickExtension(filename, mimetype)}`;
+    const objectPath = `${folder}/${crypto.randomUUID()}.${extension}`;
+    const endpoint = `${baseUrl}/storage/v1/object/${bucketSegment}/${encodePath(objectPath)}`;
 
-    const response = await request('upload', `${baseUrl}/storage/v1/object/${bucketSegment}/${encodePath(objectPath)}`, {
+    await request('upload', endpoint, {
       method: 'POST',
       headers: {
-        'content-type': mimetype || 'application/octet-stream',
+        'content-type': mimetype,
         'cache-control': CACHE_CONTROL,
         // Không ghi đè object có sẵn: trùng tên (gần như không thể với UUID) thì báo lỗi.
         'x-upsert': 'false',
       },
       body: buffer,
     });
-    try {
-      await response.body?.cancel();
-    } catch {
-      // Body upload thành công không cần dùng.
-    }
 
     return { url: publicUrl(objectPath), public_id: objectPath };
   }
@@ -125,19 +143,14 @@ function createSupabaseDriver({ url, serviceRoleKey, bucket, fetchImpl } = {}) {
     // public_id do driver khác sinh ra (hoặc dữ liệu bịa) thì bỏ qua, không gọi API.
     if (!OBJECT_PATH_PATTERN.test(publicId) || publicId.split('/').includes('..')) return;
 
-    const response = await request('delete', `${baseUrl}/storage/v1/object/${bucketSegment}`, {
+    await request('delete', `${baseUrl}/storage/v1/object/${bucketSegment}`, {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ prefixes: [publicId] }),
     });
-    try {
-      await response.body?.cancel();
-    } catch {
-      // Không cần kết quả xóa.
-    }
   }
 
   return { upload, destroy, publicUrl, name: 'supabase' };
 }
 
-module.exports = { createSupabaseDriver, REQUEST_TIMEOUT_MS };
+module.exports = { createSupabaseDriver, buildAuthHeaders, REQUEST_TIMEOUT_MS, CACHE_CONTROL };

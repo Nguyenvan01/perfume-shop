@@ -184,6 +184,13 @@ SUPABASE_STORAGE_BUCKET=product-images
 
 Thiếu một trong ba biến `SUPABASE_*` → app fail khi boot, message chỉ nêu *tên* biến thiếu.
 
+- `SUPABASE_URL` phải là **gốc project, https**: không path, query, fragment hay
+  `user:pass@`. `http://localhost` / `http://127.0.0.1` chỉ được nhận khi
+  `NODE_ENV` khác `production` (Supabase CLI chạy local).
+- `SUPABASE_SERVICE_ROLE_KEY` nhận cả hai loại key:
+  - key mới `sb_secret_...` (khuyên dùng): không phải JWT, driver chỉ gửi qua header `apikey`;
+  - key legacy `service_role` (JWT `eyJ...`): driver gửi qua `apikey` và `Authorization: Bearer`.
+
 **Service role key chỉ ở server:**
 
 - Không bao giờ đặt nó vào biến `VITE_*` hay env nào của frontend — key này có toàn

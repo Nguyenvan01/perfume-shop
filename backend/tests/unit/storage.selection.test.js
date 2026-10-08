@@ -70,14 +70,70 @@ describe('config/env — storage fail-fast', () => {
     expect(error.message).not.toContain(SERVICE_KEY);
   });
 
-  test('STORAGE_DRIVER=supabase rejects a non-URL SUPABASE_URL', () => {
+  const useSupabase = (url) =>
     Object.assign(process.env, {
       STORAGE_DRIVER: 'supabase',
-      SUPABASE_URL: 'proj-ref.supabase.co',
+      SUPABASE_URL: url,
       SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
       SUPABASE_STORAGE_BUCKET: 'product-images',
     });
-    expect(loadEnv).toThrow(/SUPABASE_URL must be an http\(s\) URL/);
+
+  test.each([
+    ['proj-ref.supabase.co', /is not a valid URL/],
+    ['not a url', /is not a valid URL/],
+    ['http://proj-ref.supabase.co', /must use https/],
+    ['ftp://proj-ref.supabase.co', /must use https/],
+    ['https://user:pass@proj-ref.supabase.co', /must not contain credentials/],
+    ['https://proj-ref.supabase.co/?x=1', /query string or fragment/],
+    ['https://proj-ref.supabase.co?', /query string or fragment/],
+    ['https://proj-ref.supabase.co/#frag', /query string or fragment/],
+    ['https://proj-ref.supabase.co/storage/v1', /without a path/],
+  ])('rejects SUPABASE_URL %p without echoing it', (url, expected) => {
+    useSupabase(url);
+    let error;
+    try {
+      loadEnv();
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error?.message).toMatch(expected);
+    expect(error.message).not.toContain(url);
+    expect(error.message).not.toContain(SERVICE_KEY);
+  });
+
+  test.each([
+    ['https://proj-ref.supabase.co', 'https://proj-ref.supabase.co'],
+    ['https://proj-ref.supabase.co/', 'https://proj-ref.supabase.co'],
+    ['HTTPS://Proj-Ref.Supabase.co', 'https://proj-ref.supabase.co'],
+    ['http://localhost:54321', 'http://localhost:54321'],
+    ['http://127.0.0.1:54321/', 'http://127.0.0.1:54321'],
+  ])('accepts SUPABASE_URL %p and normalizes to the origin', (url, origin) => {
+    useSupabase(url);
+    expect(loadEnv().SUPABASE_URL).toBe(origin);
+  });
+
+  describe('in production', () => {
+    let savedNodeEnv;
+    beforeEach(() => {
+      savedNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+    });
+    afterEach(() => {
+      process.env.NODE_ENV = savedNodeEnv;
+    });
+
+    test.each([['http://localhost:54321'], ['http://127.0.0.1:54321']])(
+      'rejects local http SUPABASE_URL %p',
+      (url) => {
+        useSupabase(url);
+        expect(loadEnv).toThrow(/must use https/);
+      }
+    );
+
+    test('accepts an https SUPABASE_URL', () => {
+      useSupabase('https://proj-ref.supabase.co');
+      expect(loadEnv().SUPABASE_URL).toBe('https://proj-ref.supabase.co');
+    });
   });
 
   test('STORAGE_DRIVER=supabase with full config loads, also on Vercel', () => {

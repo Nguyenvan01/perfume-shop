@@ -1,9 +1,15 @@
 'use strict';
 
 const AppError = require('../../src/utils/AppError');
-const { createSupabaseDriver } = require('../../src/utils/storage/supabase.driver');
+const {
+  createSupabaseDriver,
+  buildAuthHeaders,
+  CACHE_CONTROL,
+} = require('../../src/utils/storage/supabase.driver');
 
-const SERVICE_KEY = 'sb-service-role-SECRET-xyz';
+// Key legacy service_role là JWT (3 phần); key mới sb_secret_ là chuỗi opaque.
+const LEGACY_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.LEGACY-SECRET-sig';
+const NEW_KEY = 'sb_secret_NEW-SECRET-abc123';
 const BASE_URL = 'https://proj-ref.supabase.co';
 const BUCKET = 'product-images';
 const UUID_PATH = /^products\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/;
@@ -17,7 +23,7 @@ const okResponse = (payload = { Key: 'x' }) =>
 function makeDriver(fetchImpl, overrides = {}) {
   return createSupabaseDriver({
     url: `${BASE_URL}/`, // dấu "/" cuối phải được bỏ
-    serviceRoleKey: SERVICE_KEY,
+    serviceRoleKey: LEGACY_KEY,
     bucket: BUCKET,
     fetchImpl,
     ...overrides,
@@ -28,8 +34,42 @@ function makeDriver(fetchImpl, overrides = {}) {
 const exposedText = (error) =>
   [error.message, JSON.stringify(error.errors ?? []), error.stack, JSON.stringify(error)].join('\n');
 
+describe('supabase storage driver — auth headers', () => {
+  test('legacy JWT service_role key → apikey + Authorization Bearer', () => {
+    expect(buildAuthHeaders(LEGACY_KEY)).toEqual({
+      apikey: LEGACY_KEY,
+      authorization: `Bearer ${LEGACY_KEY}`,
+    });
+  });
+
+  test('new sb_secret_ key → apikey only, never Bearer', () => {
+    expect(buildAuthHeaders(NEW_KEY)).toEqual({ apikey: NEW_KEY });
+  });
+
+  test('an sb_ key that happens to contain dots is still not sent as Bearer', () => {
+    expect(buildAuthHeaders('sb_secret_a.b.c')).toEqual({ apikey: 'sb_secret_a.b.c' });
+  });
+
+  test.each([
+    ['legacy', LEGACY_KEY, `Bearer ${LEGACY_KEY}`],
+    ['sb_secret_', NEW_KEY, undefined],
+  ])('%s key: upload and delete both send the expected headers', async (_label, key, bearer) => {
+    const fetchImpl = jest.fn().mockImplementation(async () => okResponse([]));
+    const driver = makeDriver(fetchImpl, { serviceRoleKey: key });
+
+    await driver.upload(Buffer.from('x'), { mimetype: 'image/png' });
+    await driver.destroy('products/a.png');
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchImpl.mock.calls) {
+      expect(init.headers.apikey).toBe(key);
+      expect(init.headers.authorization).toBe(bearer);
+    }
+  });
+});
+
 describe('supabase storage driver — upload', () => {
-  test('POSTs the buffer to <bucket>/<folder>/<uuid>.<ext> with content-type and auth headers', async () => {
+  test('POSTs the buffer to <bucket>/<folder>/<uuid>.<ext> with content-type, cache-control, no upsert', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(okResponse());
     const driver = makeDriver(fetchImpl);
     const buffer = Buffer.from('fake-image-bytes');
@@ -50,9 +90,9 @@ describe('supabase storage driver — upload', () => {
     expect(init.method).toBe('POST');
     expect(init.body).toBe(buffer);
     expect(init.headers['content-type']).toBe('image/webp');
+    expect(init.headers['cache-control']).toBe(CACHE_CONTROL);
+    expect(CACHE_CONTROL).toBe('max-age=31536000');
     expect(init.headers['x-upsert']).toBe('false');
-    expect(init.headers.authorization).toBe(`Bearer ${SERVICE_KEY}`);
-    expect(init.headers.apikey).toBe(SERVICE_KEY);
     expect(init.signal).toBeInstanceOf(AbortSignal);
 
     expect(result).toEqual({
@@ -67,10 +107,10 @@ describe('supabase storage driver — upload', () => {
 
     expect(result.url).toMatch(/^https:\/\//);
     expect(result.public_id).toMatch(/^brands\/[0-9a-f-]{36}\.png$/);
-    expect(JSON.stringify(result)).not.toContain(SERVICE_KEY);
+    expect(JSON.stringify(result)).not.toContain(LEGACY_KEY);
   });
 
-  test('derives the extension from the mimetype, not the user-supplied filename', async () => {
+  test('derives the extension from the mimetype, never from the user-supplied filename', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(okResponse());
     const driver = makeDriver(fetchImpl);
 
@@ -83,6 +123,21 @@ describe('supabase storage driver — upload', () => {
     expect(public_id).toMatch(/^products\/[0-9a-f-]{36}\.jpg$/);
     expect(fetchImpl.mock.calls[0][0]).not.toContain('passwd');
   });
+
+  test.each([['image/svg+xml'], ['text/html'], ['application/octet-stream'], [undefined]])(
+    'rejects unsupported mimetype %p with AppError 400 before calling the API',
+    async (mimetype) => {
+      const fetchImpl = jest.fn();
+      const error = await makeDriver(fetchImpl)
+        .upload(Buffer.from('x'), { filename: 'evil.png', mimetype })
+        .catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error.statusCode).toBe(400);
+      expect(error.message).toMatch(/^Unsupported image type/);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  );
 
   test('generates a unique path per upload', async () => {
     const driver = makeDriver(jest.fn().mockImplementation(async () => okResponse()));
@@ -102,7 +157,7 @@ describe('supabase storage driver — upload', () => {
   });
 
   test('upstream error → AppError 502 with status only; body and key never leak', async () => {
-    const leakyBody = JSON.stringify({ error: 'Unauthorized', message: `bad key ${SERVICE_KEY}` });
+    const leakyBody = JSON.stringify({ error: 'Unauthorized', message: `bad key ${LEGACY_KEY}` });
     const fetchImpl = jest.fn().mockResolvedValue(new Response(leakyBody, { status: 403 }));
     const driver = makeDriver(fetchImpl);
 
@@ -113,12 +168,12 @@ describe('supabase storage driver — upload', () => {
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(502);
     expect(error.message).toBe('Storage upload failed (403)');
-    expect(exposedText(error)).not.toContain(SERVICE_KEY);
+    expect(exposedText(error)).not.toContain(LEGACY_KEY);
     expect(exposedText(error)).not.toContain('bad key');
   });
 
   test('network failure → AppError 502 without forwarding the fetch error detail', async () => {
-    const networkError = new TypeError(`fetch failed: Authorization Bearer ${SERVICE_KEY}`);
+    const networkError = new TypeError(`fetch failed: Authorization Bearer ${LEGACY_KEY}`);
     const driver = makeDriver(jest.fn().mockRejectedValue(networkError));
 
     const error = await driver
@@ -128,24 +183,36 @@ describe('supabase storage driver — upload', () => {
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(502);
     expect(error.message).toBe('Storage upload failed: storage service unreachable');
-    expect(exposedText(error)).not.toContain(SERVICE_KEY);
+    expect(exposedText(error)).not.toContain(LEGACY_KEY);
   });
 
-  test('timeout → AppError 502 "timed out"', async () => {
-    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
-    const driver = makeDriver(jest.fn().mockRejectedValue(timeout));
-
-    await expect(driver.upload(Buffer.from('x'), { mimetype: 'image/png' })).rejects.toMatchObject({
-      statusCode: 502,
-      message: 'Storage upload failed: storage service timed out',
+  test('a hanging request is aborted by the timeout signal → AppError 502 "timed out"', async () => {
+    let receivedSignal;
+    // fetch giả treo mãi, chỉ kết thúc khi signal abort — giống fetch thật.
+    const hangingFetch = jest.fn((_url, init) => {
+      receivedSignal = init.signal;
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+      });
     });
+    const driver = makeDriver(hangingFetch, { timeoutMs: 30 });
+
+    const error = await driver
+      .upload(Buffer.from('x'), { mimetype: 'image/png' })
+      .catch((caught) => caught);
+
+    expect(receivedSignal.aborted).toBe(true);
+    expect(receivedSignal.reason?.name).toBe('TimeoutError');
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.statusCode).toBe(502);
+    expect(error.message).toBe('Storage upload failed: storage service timed out');
   });
 });
 
 describe('supabase storage driver — destroy', () => {
-  test('DELETEs the object via the bucket prefixes endpoint', async () => {
+  test('DELETEs the object via the bucket prefixes endpoint with apikey', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(okResponse([]));
-    const driver = makeDriver(fetchImpl);
+    const driver = makeDriver(fetchImpl, { serviceRoleKey: NEW_KEY });
 
     await driver.destroy('products/abc-123.webp');
 
@@ -155,7 +222,8 @@ describe('supabase storage driver — destroy', () => {
     expect(init.method).toBe('DELETE');
     expect(JSON.parse(init.body)).toEqual({ prefixes: ['products/abc-123.webp'] });
     expect(init.headers['content-type']).toBe('application/json');
-    expect(init.headers.authorization).toBe(`Bearer ${SERVICE_KEY}`);
+    expect(init.headers.apikey).toBe(NEW_KEY);
+    expect(init.headers).not.toHaveProperty('authorization');
   });
 
   test.each([[undefined], [null], ['']])('is a no-op for empty public_id %p', async (publicId) => {
@@ -175,7 +243,7 @@ describe('supabase storage driver — destroy', () => {
 
   test('upstream error → AppError 502 without leaking the key', async () => {
     const driver = makeDriver(
-      jest.fn().mockResolvedValue(new Response(`denied for ${SERVICE_KEY}`, { status: 500 }))
+      jest.fn().mockResolvedValue(new Response(`denied for ${LEGACY_KEY}`, { status: 500 }))
     );
 
     const error = await driver.destroy('products/a.png').catch((caught) => caught);
@@ -183,7 +251,7 @@ describe('supabase storage driver — destroy', () => {
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(502);
     expect(error.message).toBe('Storage delete failed (500)');
-    expect(exposedText(error)).not.toContain(SERVICE_KEY);
+    expect(exposedText(error)).not.toContain(LEGACY_KEY);
   });
 });
 
@@ -201,7 +269,7 @@ describe('supabase storage driver — construction', () => {
     }
     expect(error).toBeInstanceOf(Error);
     expect(error.message).toMatch(/SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET/);
-    expect(error.message).not.toContain(SERVICE_KEY);
+    expect(error.message).not.toContain(LEGACY_KEY);
   });
 
   test('uses global fetch when no fetchImpl is injected', async () => {
