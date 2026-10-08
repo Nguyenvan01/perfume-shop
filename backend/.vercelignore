@@ -1,0 +1,7 @@
+# Không cần cho runtime trên Vercel — giảm kích thước deployment.
+tests/
+coverage/
+uploads/
+.env
+.env.*
+!.env.example

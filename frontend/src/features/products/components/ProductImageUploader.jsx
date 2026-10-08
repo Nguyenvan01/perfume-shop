@@ -30,7 +30,11 @@ export default function ProductImageUploader({ productId, images, onChanged }) {
       setFileList([]);
       invalidate();
     },
-    onError: (error) => notification.error({ message: error.message }),
+    onError: (error) => {
+      notification.error({ message: error.message });
+      // Upload chia nhiều batch: batch trước có thể đã lên → làm mới danh sách ảnh.
+      invalidate();
+    },
   });
 
   const primaryMutation = useMutation({

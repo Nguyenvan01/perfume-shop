@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { authStorage } from '../features/auth/authStorage';
+import { API_BASE_URL, MISSING_API_BASE_URL_MESSAGE } from './baseUrl';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
+const BASE_URL = API_BASE_URL;
+
+/** Vercel chặn body > 4.5MB trước khi tới backend, trả 413 không theo envelope. */
+const PAYLOAD_TOO_LARGE_MESSAGE = 'Dữ liệu gửi lên quá lớn. Vui lòng gửi ít file hơn hoặc file nhỏ hơn.';
 
 /** Lỗi đã được chuẩn hoá từ envelope backend (implementation_plan.md §2). */
 export class ApiError extends Error {
@@ -28,6 +32,10 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  // Production build thiếu VITE_API_BASE_URL: báo lỗi cấu hình rõ ràng thay vì gọi nhầm chỗ.
+  if (!BASE_URL) {
+    throw new ApiError({ message: MISSING_API_BASE_URL_MESSAGE, status: 0 });
+  }
   const token = authStorage.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -65,6 +73,8 @@ apiClient.interceptors.response.use(
     return { data: body };
   },
   async (error) => {
+    if (error instanceof ApiError) return Promise.reject(error);
+
     const { response, config } = error;
 
     if (!response) {
@@ -91,9 +101,11 @@ apiClient.interceptors.response.use(
     }
 
     const body = response.data || {};
+    const fallbackMessage =
+      response.status === 413 ? PAYLOAD_TOO_LARGE_MESSAGE : 'Đã có lỗi xảy ra';
     return Promise.reject(
       new ApiError({
-        message: body.message || 'Đã có lỗi xảy ra',
+        message: body.message || fallbackMessage,
         status: response.status,
         errors: body.errors,
       })

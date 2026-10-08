@@ -1,7 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
-
-/** Gốc server (bỏ /api/v1) để ghép với đường dẫn ảnh local do backend trả về. */
-const SERVER_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+import { SERVER_ORIGIN } from '../api/baseUrl';
 
 /**
  * Backend trả `image_url` tương đối khi dùng storage driver `local` ("/uploads/..."),

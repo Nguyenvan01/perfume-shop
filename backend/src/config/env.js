@@ -2,6 +2,7 @@
 
 const path = require('path');
 const dotenv = require('dotenv');
+const { parseOrigins } = require('../utils/corsOrigin');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -55,16 +56,16 @@ const env = {
   JWT_ACCESS_EXPIRES: process.env.JWT_ACCESS_EXPIRES || '15m',
   JWT_REFRESH_EXPIRES: process.env.JWT_REFRESH_EXPIRES || '7d',
 
-  CORS_ORIGIN: (process.env.CORS_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  // Nhiều origin cách nhau bằng dấu phẩy; hỗ trợ wildcard host (xem utils/corsOrigin.js).
+  CORS_ORIGIN: parseOrigins(process.env.CORS_ORIGIN || 'http://localhost:5173'),
 
   LOW_STOCK_THRESHOLD: readNumber('LOW_STOCK_THRESHOLD', 5),
   // Báo cáo tính theo ngày giờ Việt Nam (UTC+7), không theo UTC.
   REPORT_TIMEZONE_OFFSET: readNumber('REPORT_TIMEZONE_OFFSET', 7),
   DEFAULT_SHIPPING_FEE: readNumber('DEFAULT_SHIPPING_FEE', 30000),
 
+  // Vercel tự đặt VERCEL=1 cho mọi build/function (trùng tên với nhánh supabase-storage).
+  isVercel: Boolean(process.env.VERCEL),
   STORAGE_DRIVER: process.env.STORAGE_DRIVER || 'local',
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
