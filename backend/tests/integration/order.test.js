@@ -797,3 +797,67 @@ describe('Checkout có mã khuyến mãi', () => {
     expect(Number(res.body.data.discount_amount)).toBe(200_000);
   });
 });
+
+describe('Đồng thời: hủy đơn và checkout dùng chung promotion + variant', () => {
+  it('không deadlock / 500: thứ tự khóa chung cart → promotion → variants (id tăng dần)', async () => {
+    const promotion = await prisma.promotion.create({
+      data: {
+        code: 'LOCKORDER',
+        name: 'Thứ tự khóa',
+        discount_type: 'FIXED',
+        discount_value: 50_000,
+        start_date: new Date(Date.now() - 86_400_000),
+        end_date: new Date(Date.now() + 86_400_000),
+        usage_limit: 100,
+        per_customer_limit: 1,
+      },
+    });
+    const product = await createProduct({
+      variants: [
+        { sku: 'LOCK-30', volume_ml: 30, price: 300_000, stock: 50 },
+        { sku: 'LOCK-100', volume_ml: 100, price: 900_000, stock: 50 },
+      ],
+    });
+    const [low, high] = product.variants.map((v) => v.id).sort((a, b) => a - b);
+    const withCode = { ...CHECKOUT_PAYLOAD, promotion_code: promotion.code };
+
+    const ROUNDS = 4;
+    for (let round = 0; round < ROUNDS; round += 1) {
+      const buyer = await loginAs('CUSTOMER', { email: `lock-a-${round}@test.local` });
+      const racer = await loginAs('CUSTOMER', { email: `lock-b-${round}@test.local` });
+
+      // Đơn sẽ bị hủy: dòng giỏ theo id tăng dần.
+      await addToCart(buyer, low, 1);
+      await addToCart(buyer, high, 1);
+      const placed = await request(app).post(api('/orders')).set(buyer.authHeader).send(withCode);
+      expect(placed.status).toBe(201);
+
+      // Giỏ của người checkout song song: thứ tự dòng ngược lại.
+      await addToCart(racer, high, 1);
+      await addToCart(racer, low, 1);
+
+      const [cancel, checkout] = await Promise.all([
+        request(app)
+          .patch(api(`/orders/${placed.body.data.id}/cancel`))
+          .set(buyer.authHeader)
+          .send({ reason: 'test đồng thời' }),
+        request(app).post(api('/orders')).set(racer.authHeader).send(withCode),
+      ]);
+
+      expect({ round, cancel: cancel.status, checkout: checkout.status }).toEqual({
+        round,
+        cancel: 200,
+        checkout: 201,
+      });
+    }
+
+    // Mỗi vòng: một đơn bị hủy (nhả lượt + hoàn kho), một đơn còn hiệu lực.
+    const fresh = await prisma.promotion.findUnique({ where: { id: promotion.id } });
+    expect(fresh.used_count).toBe(ROUNDS);
+    expect(await prisma.promotionUsage.count({ where: { promotion_id: promotion.id } })).toBe(ROUNDS);
+
+    const stocks = await prisma.productVariant.findMany({ where: { product_id: product.id } });
+    for (const variant of stocks) expect(variant.stock_quantity).toBe(50 - ROUNDS);
+    await assertStockMatchesHistory();
+  });
+});

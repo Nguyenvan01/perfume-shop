@@ -22,6 +22,20 @@ async function lockVariantForUpdate(tx, variantId) {
   return rows[0] ?? null;
 }
 
+/**
+ * Khóa nhiều variant trong MỘT câu, theo id tăng dần (ORDER BY id → Postgres khóa
+ * từng dòng theo đúng thứ tự trả về). `ids` đã được sort/unique ở service.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ */
+const lockVariantsForUpdate = (tx, ids) =>
+  tx.$queryRaw`
+    SELECT id
+    FROM product_variants
+    WHERE id IN (${Prisma.join(ids)})
+    ORDER BY id
+    FOR UPDATE
+  `;
+
 const applyStock = (tx, variantId, newQuantity) =>
   tx.productVariant.update({ where: { id: variantId }, data: { stock_quantity: newQuantity } });
 
@@ -164,6 +178,7 @@ const findTransactionsByIds = (ids) =>
 
 module.exports = {
   lockVariantForUpdate,
+  lockVariantsForUpdate,
   applyStock,
   createTransaction,
   findVariants,

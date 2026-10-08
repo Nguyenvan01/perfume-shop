@@ -3,6 +3,7 @@
 const { Prisma } = require('@prisma/client');
 const AppError = require('../utils/AppError');
 const env = require('../config/env');
+const { isTransactionConflict } = require('../utils/transaction');
 
 /** 404 cho route không khớp — chạy sau mọi router. */
 function notFoundHandler(req, _res, next) {
@@ -11,6 +12,11 @@ function notFoundHandler(req, _res, next) {
 
 /** Map lỗi Prisma sang HTTP status có nghĩa, thay vì để rơi vào 500. */
 function mapPrismaError(error) {
+  // Deadlock / write conflict (P2034, hoặc P2010 + SQLSTATE 40P01/40001 từ raw query):
+  // lỗi tạm thời do đụng request khác — client thử lại được, không phải lỗi server.
+  if (isTransactionConflict(error)) {
+    return AppError.conflict('The request conflicted with a concurrent update. Please try again');
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case 'P2002': {

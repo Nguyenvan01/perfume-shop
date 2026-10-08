@@ -105,9 +105,15 @@ async function claimForOrder(tx, { code, subtotal, customerId }) {
   return { promotion, discount_amount: discount };
 }
 
-/** Hủy đơn / trả hàng: nhả lại lượt dùng để khách dùng mã cho đơn khác. */
+/**
+ * Hủy đơn / trả hàng: nhả lại lượt dùng để khách dùng mã cho đơn khác.
+ * Khóa promotion TRƯỚC mọi ghi — thứ tự khóa: promotion → variants (xem
+ * inventoryService.lockVariantsInIdOrder), nên caller phải gọi hàm này trước khi
+ * hoàn kho.
+ */
 async function releaseForOrder(tx, order) {
   if (!order.promotion_id) return;
+  await repo.lockByIdForUpdate(tx, order.promotion_id);
   await repo.deleteUsageByOrder(tx, order.id);
   await repo.incrementUsedCount(tx, order.promotion_id, -1);
 }

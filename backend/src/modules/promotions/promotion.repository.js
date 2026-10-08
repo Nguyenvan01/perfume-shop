@@ -38,6 +38,12 @@ async function lockByCodeForUpdate(tx, code) {
   return rows[0] ?? null;
 }
 
+/** Khóa promotion theo id (hủy / trả đơn) — cùng khóa với checkout. */
+async function lockByIdForUpdate(tx, id) {
+  const rows = await tx.$queryRaw`SELECT id FROM promotions WHERE id = ${id} FOR UPDATE`;
+  return rows[0] ?? null;
+}
+
 const findCustomerByUserId = (user_id) => prisma.customer.findUnique({ where: { user_id } });
 
 const countCustomerUsage = (promotion_id, customer_id, client = prisma) =>
@@ -96,6 +102,7 @@ module.exports = {
   PROMOTION_SELECT,
   findByCode,
   lockByCodeForUpdate,
+  lockByIdForUpdate,
   findCustomerByUserId,
   countCustomerUsage,
   createUsage,
