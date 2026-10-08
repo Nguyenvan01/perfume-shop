@@ -42,7 +42,7 @@ perfume-shop/
         └── App.jsx
 ```
 
-Modules: `auth, users, roles, products, product-variants, brands, categories, inventory, customers, carts, orders, promotions, reviews, reports`.
+Modules: `auth, users, roles, products, product-variants, brands, categories, inventory, customers, carts, orders, promotions, reviews, reports, agents`.
 
 Mỗi backend module:
 ```text

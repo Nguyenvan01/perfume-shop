@@ -71,6 +71,15 @@ const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
 
+  // Agent orchestration: keys stay only in the server environment. A provider is
+  // enabled only when both its key and model name are supplied.
+  AGENT_OPENAI_API_KEY: process.env.AGENT_OPENAI_API_KEY || '',
+  AGENT_OPENAI_MODEL: process.env.AGENT_OPENAI_MODEL || '',
+  AGENT_ANTHROPIC_API_KEY: process.env.AGENT_ANTHROPIC_API_KEY || '',
+  AGENT_ANTHROPIC_MODEL: process.env.AGENT_ANTHROPIC_MODEL || '',
+  AGENT_GEMINI_API_KEY: process.env.AGENT_GEMINI_API_KEY || '',
+  AGENT_GEMINI_MODEL: process.env.AGENT_GEMINI_MODEL || '',
+
   SEED_PASSWORD: process.env.SEED_PASSWORD || '',
 };
 
