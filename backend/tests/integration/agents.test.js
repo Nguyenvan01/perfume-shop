@@ -86,3 +86,33 @@ describe('POST /agents/runs — validation', () => {
     expect(res.body.errors.map((error) => error.field)).toContain(field);
   });
 });
+
+describe('POST /agents/runs — ADMIN, body hợp lệ', () => {
+  const realFetch = global.fetch;
+
+  beforeEach(() => {
+    // Không bao giờ gọi provider thật trong test, kể cả khi .env có key.
+    global.fetch = jest.fn().mockRejectedValue(new Error('network disabled in tests'));
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('→ 200, trả envelope chuẩn với kết quả theo đúng thứ tự provider', async () => {
+    const admin = await loginAs('ADMIN');
+
+    const res = await request(app).post(api('/agents/runs')).set(admin.authHeader).send(validBody);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual(
+      expect.objectContaining({ id: expect.any(String), status: 'failed', results: expect.any(Array) })
+    );
+    expect(res.body.data.results.map((result) => result.provider)).toEqual(validBody.providers);
+    for (const result of res.body.data.results) {
+      expect(['unavailable', 'failed']).toContain(result.status);
+      expect(result.error).not.toContain('network disabled');
+    }
+  });
+});

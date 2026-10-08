@@ -197,6 +197,29 @@ describe('Gemini adapter (generateContent)', () => {
     expect(text).toBe('Design A wins.');
   });
 
+  it('drops thought parts returned by thinking models', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        candidates: [
+          {
+            content: {
+              role: 'model',
+              parts: [
+                { text: 'Internal reasoning…', thought: true },
+                { text: 'Design A wins.' },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+      })
+    );
+
+    const text = await createGeminiAdapter({ apiKey: API_KEY, model: 'gemini-test' }).run({ task: TASK });
+
+    expect(text).toBe('Design A wins.');
+  });
+
   it('strips a leading "models/" prefix from the configured model name', async () => {
     fetchMock.mockResolvedValue(jsonResponse(geminiPayload));
 

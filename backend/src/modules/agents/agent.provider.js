@@ -135,7 +135,10 @@ function createGeminiAdapter({ apiKey, model }) {
         },
       });
       const parts = asArray(asArray(payload.candidates)[0]?.content?.parts);
+      // Thinking models return chain-of-thought as parts marked `thought: true`; drop them,
+      // like the OpenAI (reasoning items) and Anthropic (thinking blocks) adapters do.
       const text = parts
+        .filter((part) => !part?.thought)
         .map((part) => (typeof part?.text === 'string' ? part.text : ''))
         .join('\n');
       return requireText('gemini', text);

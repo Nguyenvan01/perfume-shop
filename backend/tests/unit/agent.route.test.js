@@ -61,4 +61,15 @@ describe('POST /agents/runs rate limit', () => {
     expect((await runAs(2)).status).toBe(200);
     expect((await request(app).get('/models').set('x-user-id', '1')).status).toBe(200);
   });
+
+  it('rejects an invalid body with 400 without using up the run budget', async () => {
+    const app = buildApp();
+    const post = (payload) => request(app).post('/runs').set('x-user-id', '3').send(payload);
+
+    for (let i = 0; i < RUN_RATE_LIMIT.limit + 2; i += 1) {
+      expect((await post({ task: 'Compare', providers: ['openai'] })).status).toBe(400);
+    }
+
+    expect((await post(body)).status).toBe(200);
+  });
 });

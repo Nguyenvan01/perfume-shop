@@ -15,13 +15,14 @@ const router = express.Router();
 const runLimiter = createLimiter({
   ...RUN_RATE_LIMIT,
   message: 'Too many agent runs. Please try again later.',
-  keyGenerator: (req) => `agent-run:${req.user.id}`,
+  keyGenerator: (req) => `agent-run:${req.user?.id ?? req.ip}`,
 });
 
 // This endpoint can spend paid provider credits, so it is intentionally more
 // restricted than normal staff operations.
 router.use(authenticate, requireRole('ADMIN'));
 router.get('/models', controller.listModels);
-router.post('/runs', runLimiter, validate(runSchema), controller.run);
+// Validate first so a malformed request does not use up the run budget.
+router.post('/runs', validate(runSchema), runLimiter, controller.run);
 
 module.exports = router;
