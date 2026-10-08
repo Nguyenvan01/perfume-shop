@@ -41,6 +41,30 @@ if (missing.length > 0) {
   throw new Error(`Missing required env variables: ${missing.join(', ')}`);
 }
 
+const STORAGE_DRIVER = process.env.STORAGE_DRIVER || 'local';
+// Vercel tự đặt VERCEL=1 cho mọi build/function.
+const isVercel = Boolean(process.env.VERCEL);
+
+// Serverless (Vercel) không có đĩa bền: file ghi xuống sẽ mất sau mỗi lần invoke.
+if (isVercel && STORAGE_DRIVER === 'local') {
+  throw new Error(
+    'STORAGE_DRIVER=local is not supported on Vercel (no persistent disk). Set STORAGE_DRIVER=supabase (or cloudinary).'
+  );
+}
+
+if (STORAGE_DRIVER === 'supabase') {
+  // Chỉ in TÊN biến thiếu, không bao giờ in giá trị (service role key là bí mật).
+  const missingStorage = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_STORAGE_BUCKET'].filter(
+    (key) => !process.env[key]
+  );
+  if (missingStorage.length > 0) {
+    throw new Error(`STORAGE_DRIVER=supabase but missing env: ${missingStorage.join(', ')}`);
+  }
+  if (!/^https?:\/\/[^\s/]+/i.test(process.env.SUPABASE_URL)) {
+    throw new Error('SUPABASE_URL must be an http(s) URL, e.g. https://<project-ref>.supabase.co');
+  }
+}
+
 const env = {
   NODE_ENV,
   isDevelopment: NODE_ENV === 'development',
@@ -65,11 +89,16 @@ const env = {
   REPORT_TIMEZONE_OFFSET: readNumber('REPORT_TIMEZONE_OFFSET', 7),
   DEFAULT_SHIPPING_FEE: readNumber('DEFAULT_SHIPPING_FEE', 30000),
 
-  STORAGE_DRIVER: process.env.STORAGE_DRIVER || 'local',
+  isVercel,
+  STORAGE_DRIVER,
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
+  // Supabase Storage (production trên Vercel). Service role key chỉ ở server.
+  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET || '',
 
   // Agent orchestration: keys stay only in the server environment. A provider is
   // enabled only when both its key and model name are supplied.

@@ -153,3 +153,49 @@ Ghi lại để không ai nhầm là lỗi:
 - **Chưa có thanh toán online.** Chỉ COD và chuyển khoản, trạng thái thanh toán do
   nhân viên cập nhật tay.
 - **Chưa có backup DB tự động.** Bật tính năng backup của nhà cung cấp.
+
+---
+
+## 7. Ảnh — Supabase Storage (`STORAGE_DRIVER=supabase`)
+
+Backend chạy trên Vercel serverless **không có đĩa bền**, nên ảnh product/brand lưu ở
+Supabase Storage. App **từ chối khởi động** nếu chạy trên Vercel (`VERCEL=1`) mà
+`STORAGE_DRIVER=local` (kể cả khi bỏ trống biến này, vì mặc định là `local`).
+Driver Cloudinary vẫn còn, đổi env là dùng được.
+
+**Tạo bucket (một lần):**
+
+1. Supabase Dashboard → **Storage** → **New bucket**, đặt tên (vd `product-images`),
+   bật **Public bucket**. Bucket public = ai có URL đều *đọc* được ảnh; *ghi/xóa* vẫn cần key.
+2. Nên giới hạn trong cấu hình bucket: *Allowed MIME types* `image/jpeg, image/png, image/webp`
+   và *File size limit* `2 MB` (khớp `upload.middleware.js`).
+3. Không cần tạo policy RLS cho upload: backend dùng service role key, key này bỏ qua RLS.
+   **Không** tạo policy cho phép `anon` ghi vào bucket.
+4. Lấy **Project URL** và **service_role / secret key** ở *Project Settings → API*.
+
+**Biến môi trường backend (Vercel → Project → Settings → Environment Variables):**
+
+```text
+STORAGE_DRIVER=supabase
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role / secret key>
+SUPABASE_STORAGE_BUCKET=product-images
+```
+
+Thiếu một trong ba biến `SUPABASE_*` → app fail khi boot, message chỉ nêu *tên* biến thiếu.
+
+**Service role key chỉ ở server:**
+
+- Không bao giờ đặt nó vào biến `VITE_*` hay env nào của frontend — key này có toàn
+  quyền trên project (bỏ qua RLS).
+- Driver không log key; lỗi từ Supabase chỉ trả `502 Storage upload failed (<status>)`,
+  không chuyển tiếp body lỗi của Supabase.
+- Lộ key → rotate ngay ở *Project Settings → API* rồi cập nhật env trên Vercel.
+
+**URL ảnh:** object lưu tại `<folder>/<uuid>.<ext>` (folder `products` hoặc `brands`);
+`public_id` trong DB chính là đường dẫn này. API trả URL tuyệt đối dạng
+`https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/products/<uuid>.webp`,
+frontend (`resolveImageUrl`) dùng thẳng URL tuyệt đối nên không cần đổi gì.
+
+> Ảnh cũ upload bằng driver khác (`/uploads/...` hoặc Cloudinary) không tự chuyển sang
+> Supabase. Ảnh local sẽ không hiển thị trên Vercel — upload lại qua Admin nếu cần.
