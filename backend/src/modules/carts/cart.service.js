@@ -3,6 +3,7 @@
 const { Prisma } = require('@prisma/client');
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
+const { prisma } = require('../../config/database');
 const promotionService = require('../promotions/promotion.service');
 const repo = require('./cart.repository');
 
@@ -78,72 +79,95 @@ const getCart = async (userId) => {
   return toCartDTO(await repo.ensureCart(customer.id));
 };
 
+/**
+ * Chạy một thao tác sửa giỏ trong transaction, sau khi đã khóa dòng giỏ — cùng khóa
+ * mà checkout lấy. Nhờ vậy sửa giỏ không chen vào giữa lúc checkout đang chốt giỏ
+ * (không mất thay đổi, không sửa dòng vừa bị checkout xóa), và hai lần thêm cùng
+ * variant đồng thời được cộng dồn thay vì đụng unique (cart_id, variant_id).
+ */
+async function withLockedCart(customerId, fn) {
+  // Giỏ cũ có thể chưa tồn tại (khách tạo trước khi có cart) — tạo trước khi khóa.
+  await repo.ensureCart(customerId);
+  return prisma.$transaction(async (tx) => {
+    const cart = await repo.lockCartForUpdate(tx, customerId);
+    if (!cart) throw AppError.notFound('Cart not found');
+    return fn(tx, cart);
+  });
+}
+
 async function addItem(userId, { variant_id, quantity }) {
   const customer = await getCustomerOrFail(userId);
-  const cart = await repo.ensureCart(customer.id);
 
-  const variant = await repo.findVariantForCart(variant_id);
-  if (!variant) throw AppError.notFound('Variant not found');
-  if (variant.status !== 'ACTIVE' || variant.product.status !== 'ACTIVE' || variant.product.deleted_at) {
-    throw AppError.conflict('This product is not available for sale');
-  }
+  await withLockedCart(customer.id, async (tx, cart) => {
+    const variant = await repo.findVariantForCart(variant_id, tx);
+    if (!variant) throw AppError.notFound('Variant not found');
+    if (variant.status !== 'ACTIVE' || variant.product.status !== 'ACTIVE' || variant.product.deleted_at) {
+      throw AppError.conflict('This product is not available for sale');
+    }
 
-  const existing = await repo.findItemByVariant(cart.id, variant_id);
-  // Thêm lại variant đã có thì cộng dồn, và tổng sau khi cộng vẫn phải <= tồn kho.
-  const nextQuantity = (existing?.quantity ?? 0) + quantity;
+    const existing = await repo.findItemByVariant(cart.id, variant_id, tx);
+    // Thêm lại variant đã có thì cộng dồn, và tổng sau khi cộng vẫn phải <= tồn kho.
+    const nextQuantity = (existing?.quantity ?? 0) + quantity;
 
-  if (nextQuantity > variant.stock_quantity) {
-    throw AppError.unprocessable(
-      `Quantity exceeds available stock: ${variant.stock_quantity} left for ${variant.sku}` +
-        (existing ? ` (cart already has ${existing.quantity})` : '')
-    );
-  }
+    if (nextQuantity > variant.stock_quantity) {
+      throw AppError.unprocessable(
+        `Quantity exceeds available stock: ${variant.stock_quantity} left for ${variant.sku}` +
+          (existing ? ` (cart already has ${existing.quantity})` : '')
+      );
+    }
 
-  if (existing) {
-    await repo.updateItemQuantity(existing.id, nextQuantity);
-  } else {
-    await repo.createItem({ cart_id: cart.id, variant_id, quantity });
-  }
+    if (existing) {
+      await repo.updateItemQuantity(existing.id, nextQuantity, tx);
+    } else {
+      await repo.createItem({ cart_id: cart.id, variant_id, quantity }, tx);
+    }
+  });
 
   return toCartDTO(await repo.findCartWithItems(customer.id));
 }
 
-async function getOwnedItem(userId, itemId) {
-  const customer = await getCustomerOrFail(userId);
-  const cart = await repo.ensureCart(customer.id);
-
-  const item = await repo.findItem(itemId);
+/** Đọc dòng giỏ SAU khi đã khóa giỏ (gọi bên trong withLockedCart). */
+async function getOwnedItem(tx, cart, itemId) {
+  const item = await repo.findItem(itemId, tx);
   if (!item) throw AppError.notFound('Cart item not found');
   // Không cho sửa dòng trong giỏ của người khác.
   if (item.cart_id !== cart.id) throw AppError.forbidden('This item does not belong to your cart');
-
-  return { customer, item };
+  return item;
 }
 
 async function updateItem(userId, itemId, quantity) {
-  const { customer, item } = await getOwnedItem(userId, itemId);
+  const customer = await getCustomerOrFail(userId);
 
-  const variant = await repo.findVariantForCart(item.variant_id);
-  if (quantity > variant.stock_quantity) {
-    throw AppError.unprocessable(
-      `Quantity exceeds available stock: ${variant.stock_quantity} left for ${variant.sku}`
-    );
-  }
+  await withLockedCart(customer.id, async (tx, cart) => {
+    const item = await getOwnedItem(tx, cart, itemId);
 
-  await repo.updateItemQuantity(itemId, quantity);
+    const variant = await repo.findVariantForCart(item.variant_id, tx);
+    if (quantity > variant.stock_quantity) {
+      throw AppError.unprocessable(
+        `Quantity exceeds available stock: ${variant.stock_quantity} left for ${variant.sku}`
+      );
+    }
+
+    await repo.updateItemQuantity(itemId, quantity, tx);
+  });
+
   return toCartDTO(await repo.findCartWithItems(customer.id));
 }
 
 async function removeItem(userId, itemId) {
-  const { customer } = await getOwnedItem(userId, itemId);
-  await repo.deleteItem(itemId);
+  const customer = await getCustomerOrFail(userId);
+
+  await withLockedCart(customer.id, async (tx, cart) => {
+    await getOwnedItem(tx, cart, itemId);
+    await repo.deleteItem(itemId, tx);
+  });
+
   return toCartDTO(await repo.findCartWithItems(customer.id));
 }
 
 async function clear(userId) {
   const customer = await getCustomerOrFail(userId);
-  const cart = await repo.ensureCart(customer.id);
-  await repo.clearItems(cart.id);
+  await withLockedCart(customer.id, (tx, cart) => repo.clearItems(cart.id, tx));
   return toCartDTO(await repo.findCartWithItems(customer.id));
 }
 

@@ -82,6 +82,12 @@ async function createOrder(userId, payload) {
   const customer = await cartService.getCustomerOrFail(userId);
 
   const orderId = await prisma.$transaction(async (tx) => {
+    // Khóa giỏ TRƯỚC khi đọc dòng hàng: hai checkout đồng thời của cùng một giỏ xếp
+    // hàng ở đây; request sau chỉ đọc giỏ khi request trước đã commit (giỏ đã bị xóa)
+    // → "Cart is empty", không tạo đơn thứ hai, không trừ kho hai lần.
+    const lockedCart = await cartRepo.lockCartForUpdate(tx, customer.id);
+    if (!lockedCart) throw AppError.conflict('Cart is empty');
+
     const cart = await cartRepo.findCartWithItems(customer.id, tx);
     if (!cart || cart.items.length === 0) throw AppError.conflict('Cart is empty');
 
