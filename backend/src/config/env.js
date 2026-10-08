@@ -2,6 +2,7 @@
 
 const path = require('path');
 const dotenv = require('dotenv');
+const { parseOrigins } = require('../utils/corsOrigin');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -127,10 +128,8 @@ const env = {
   JWT_ACCESS_EXPIRES: process.env.JWT_ACCESS_EXPIRES || '15m',
   JWT_REFRESH_EXPIRES: process.env.JWT_REFRESH_EXPIRES || '7d',
 
-  CORS_ORIGIN: (process.env.CORS_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  // Nhiều origin cách nhau bằng dấu phẩy; hỗ trợ wildcard host (xem utils/corsOrigin.js).
+  CORS_ORIGIN: parseOrigins(process.env.CORS_ORIGIN || 'http://localhost:5173'),
 
   LOW_STOCK_THRESHOLD: readNumber('LOW_STOCK_THRESHOLD', 5),
   // Báo cáo tính theo ngày giờ Việt Nam (UTC+7), không theo UTC.

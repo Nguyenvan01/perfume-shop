@@ -165,7 +165,7 @@ perfume-shop/
 | [`docs/test-report.md`](./docs/test-report.md) | Kết quả test, MVP acceptance flow, bất biến dữ liệu |
 | [`docs/api.md`](./docs/api.md) | Bảng tra 94 endpoint: path, quyền, mô tả |
 | [`docs/erd.md`](./docs/erd.md) | ERD + quyết định thiết kế database |
-| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy lên Vercel / Render / MySQL cloud |
+| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy: frontend + backend trên Vercel (2 project), DB + ảnh trên Supabase |
 | [`backend/tests/http/api.http`](./backend/tests/http/api.http) | Collection thử API tay (REST Client / Postman) |
 | [`backend/README.md`](./backend/README.md) | Hướng dẫn riêng cho backend |
 
