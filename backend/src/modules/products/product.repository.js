@@ -78,10 +78,10 @@ function findByIdOrSlug(idOrSlug, { publicOnly } = {}) {
 const findBySlug = (slug) =>
   prisma.product.findFirst({ where: { slug, ...notDeleted }, select: { id: true } });
 
-/** Không phân biệt hoa/thường — xem variant.repository `findBySku`. */
+/** `skus` phải ở dạng chuẩn (utils/sku.js) — DB chỉ lưu dạng chuẩn nên so khớp chính xác. */
 const findSkuConflicts = (skus) =>
   prisma.productVariant.findMany({
-    where: { sku: { in: skus, mode: 'insensitive' } },
+    where: { sku: { in: skus } },
     select: { sku: true },
   });
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const { z, idParam, paginationQuery } = require('../../utils/validation');
+const { normalizeSku } = require('../../utils/sku');
 
 const statusEnum = z.enum(['ACTIVE', 'INACTIVE']);
 const genderEnum = z.enum(['MALE', 'FEMALE', 'UNISEX']);
@@ -18,7 +19,9 @@ const variantInput = z
       .trim()
       .min(1, { message: 'SKU is required' })
       .max(64)
-      .regex(/^[A-Za-z0-9._-]+$/, { message: 'SKU may contain letters, digits, . _ - only' }),
+      .regex(/^[A-Za-z0-9._-]+$/, { message: 'SKU may contain letters, digits, . _ - only' })
+      // Lưu dạng chuẩn (HOA) để UNIQUE(sku) của DB chặn trùng hoa/thường — xem utils/sku.js.
+      .transform(normalizeSku),
     volume_ml: z.coerce.number().int().positive({ message: 'volume_ml must be > 0' }).max(10_000),
     price: money,
     sale_price: money.optional().nullable(),

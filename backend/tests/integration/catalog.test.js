@@ -578,6 +578,95 @@ describe('Variants', () => {
   });
 });
 
+describe('SKU dạng chuẩn — UNIQUE(sku) chặn trùng hoa/thường kể cả khi đồng thời', () => {
+  it('SKU nhập chữ thường / có khoảng trắng được lưu dạng HOA (product + variant + update)', async () => {
+    const brand = await createBrand('B-canon');
+    const category = await createCategory('C-canon');
+
+    const created = await request(app)
+      .post(api('/products'))
+      .set(admin.authHeader)
+      .send({
+        name: 'SKU chuẩn hóa',
+        brand_id: brand.id,
+        category_id: category.id,
+        gender: 'MALE',
+        concentration: 'EDP',
+        variants: [{ sku: '  canon-30 ', volume_ml: 30, price: 100000 }],
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.data.variants[0].sku).toBe('CANON-30');
+
+    const variant = await request(app)
+      .post(api(`/products/${created.body.data.id}/variants`))
+      .set(admin.authHeader)
+      .send({ sku: 'canon-50', volume_ml: 50, price: 100000 });
+    expect(variant.status).toBe(201);
+    expect(variant.body.data.sku).toBe('CANON-50');
+
+    const updated = await request(app)
+      .put(api(`/variants/${variant.body.data.id}`))
+      .set(admin.authHeader)
+      .send({ sku: 'canon-50b' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.sku).toBe('CANON-50B');
+  });
+
+  it('hai request đồng thời "abc-1" và "ABC-1" → đúng một thành công, một 409', async () => {
+    const product = await createProduct({ variants: [] });
+
+    const [a, b] = await Promise.all([
+      request(app)
+        .post(api(`/products/${product.id}/variants`))
+        .set(admin.authHeader)
+        .send({ sku: 'abc-1', volume_ml: 30, price: 100000 }),
+      request(app)
+        .post(api(`/products/${product.id}/variants`))
+        .set(admin.authHeader)
+        .send({ sku: 'ABC-1', volume_ml: 50, price: 100000 }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const rows = await prisma.productVariant.findMany({
+      where: { sku: { equals: 'abc-1', mode: 'insensitive' } },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sku).toBe('ABC-1');
+  });
+
+  it('precheck bị vượt qua (race) → unique index của DB chặn, P2002 map thành 409', async () => {
+    const variantRepo = require('../../src/modules/product-variants/variant.repository');
+    const product = await createProduct({
+      variants: [{ sku: 'RACE-SKU-100', volume_ml: 100, price: 100000 }],
+    });
+    // Giả lập request kia commit ngay sau khi precheck của request này đã chạy.
+    const spy = jest.spyOn(variantRepo, 'findBySku').mockResolvedValue(null);
+
+    try {
+      const res = await request(app)
+        .post(api(`/products/${product.id}/variants`))
+        .set(admin.authHeader)
+        .send({ sku: 'race-sku-100', volume_ml: 50, price: 100000 });
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toContain('sku');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await prisma.productVariant.count({ where: { product_id: product.id } })).toBe(1);
+  });
+
+  it('DB từ chối SKU không ở dạng chuẩn ghi trực tiếp (CHECK constraint)', async () => {
+    const product = await createProduct({ variants: [] });
+
+    await expect(
+      prisma.productVariant.create({
+        data: { product_id: product.id, sku: 'lower-100', volume_ml: 100, price: 100000 },
+      })
+    ).rejects.toThrow(/product_variants_sku_canonical_check/);
+  });
+});
+
 describe('Product images', () => {
   it('upload ảnh đầu tiên tự thành ảnh chính, file được ghi ra storage', async () => {
     const product = await createProduct({ name: 'Có ảnh' });
