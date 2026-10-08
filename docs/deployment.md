@@ -13,7 +13,7 @@ Trình duyệt ───▶ │ Vercel project #1        │        │ Vercel p
                                     ┌───────────────────────────────┴──────────────┐
                                     │ Supabase                                     │
                                     │  • PostgreSQL (pooler 6543 cho runtime,      │
-                                    │    direct 5432 cho migrate/seed)             │
+                                    │    session pooler 5432 cho migrate/seed)     │
                                     │  • Storage bucket public cho ảnh (§7)        │
                                     └──────────────────────────────────────────────┘
 ```
@@ -35,6 +35,7 @@ Thứ tự làm: **Supabase (DB + bucket) → migrate + seed → backend → fro
 | `backend/vercel.json` | `framework: null`, `installCommand: npm ci --include=dev`, rewrite mọi path → `/api`, `regions: ["sin1"]`, `maxDuration: 30` |
 | `backend/public/robots.txt` | Output tĩnh duy nhất của project backend (chặn crawler; tránh Vercel serve source như file tĩnh) |
 | `backend/.vercelignore` | Không upload `tests/`, `uploads/`, `.env` lên Vercel |
+| `frontend/.vercelignore` | Không upload `.env*` (trừ `.env.example`), `node_modules/`, `dist/`, `coverage/`, file test |
 | `backend/package.json` → `postinstall` | `prisma generate` chạy sau mỗi lần install trên Vercel (tránh Prisma Client cũ do cache) |
 | `frontend/vercel.json` | Preset Vite + SPA rewrite `/(.*) → /index.html` (F5 ở `/admin/orders` không ra 404) |
 
@@ -56,12 +57,25 @@ Thứ tự làm: **Supabase (DB + bucket) → migrate + seed → backend → fro
    | Biến | Loại | Port | Dùng cho |
    |---|---|---|---|
    | `DATABASE_URL` | **Transaction pooler** (Supavisor) | `6543` | Runtime trên Vercel |
-   | `DIRECT_URL` | **Direct connection** (hoặc Session pooler nếu máy bạn không có IPv6) | `5432` | `prisma migrate deploy`, seed, Prisma Studio |
+   | `DIRECT_URL` | **Session pooler** (Supavisor, khuyên dùng) | `5432` | `prisma migrate deploy`, seed, Prisma Studio — chạy từ máy bạn (§3) |
 
    ```text
    DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
-   DIRECT_URL="postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres"
+   DIRECT_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres"
    ```
+
+   Cùng mẫu với `backend/.env.example`. Lưu ý hai URL pooler dùng user `postgres.<ref>`
+   (có hậu tố project ref), khác host direct.
+
+   - **Vì sao session pooler cho `DIRECT_URL`:** host direct `db.<ref>.supabase.co:5432`
+     mặc định **chỉ có IPv6** trên Supabase — đa số mạng gia đình/văn phòng ở VN và nhiều
+     CI chỉ có IPv4 nên `migrate deploy` sẽ treo/`P1001 Can't reach database server`.
+     Session pooler (`aws-0-<region>.pooler.supabase.com:5432`) có IPv4 và giữ nguyên
+     session (advisory lock, prepared statement) nên Prisma Migrate chạy được.
+   - Chỉ dùng host direct (`postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres`)
+     khi máy bạn có IPv6 hoặc project đã bật **IPv4 add-on** (trả phí).
+   - **Không** dùng transaction pooler `6543` cho `DIRECT_URL`: Prisma Migrate cần session
+     (advisory lock) — transaction mode làm migrate lỗi hoặc treo.
 
    - `pgbouncer=true`: tắt prepared statement của Prisma — bắt buộc khi đi qua pooler ở
      transaction mode, không có sẽ gặp lỗi `prepared statement "s0" already exists`.
@@ -124,12 +138,12 @@ npx prisma studio
 |---|---|---|
 | `NODE_ENV` | nên có | `production` (bật `trust proxy`, log `combined`, Prisma chỉ log `error`) |
 | `DATABASE_URL` | ✅ | Pooler `6543` + `?pgbouncer=true&connection_limit=1` (§2) |
-| `DIRECT_URL` | ✅ | Direct `5432` — Prisma đọc khi có `directUrl` trong schema |
+| `DIRECT_URL` | không cần | Runtime không dùng: `src/config/env.js` tự đặt `DIRECT_URL = DATABASE_URL` (và ghi vào `process.env`) **trước** khi tạo Prisma Client, nên `directUrl = env("DIRECT_URL")` trong schema luôn có giá trị. `prisma generate` (`postinstall`) cũng không đọc biến này. Chỉ cần khi chạy `migrate deploy` từ máy bạn (§3). Nếu vẫn đặt thì dùng session pooler `5432`, **không** dùng `6543` |
 | `JWT_ACCESS_SECRET` | ✅ | `openssl rand -hex 32` |
 | `JWT_REFRESH_SECRET` | ✅ | `openssl rand -hex 32` — **khác** access secret |
 | `JWT_ACCESS_EXPIRES` | | `15m` |
 | `JWT_REFRESH_EXPIRES` | | `7d` |
-| `CORS_ORIGIN` | ✅ | Domain frontend, vd `https://perfume-shop.vercel.app`. Nhiều origin cách nhau dấu phẩy. Hỗ trợ `*` cho **một** nhãn host để nhận preview: `https://perfume-shop-*-<team>.vercel.app` |
+| `CORS_ORIGIN` | ✅ | Domain frontend, vd `https://perfume-shop.vercel.app`. Nhiều origin cách nhau dấu phẩy. Wildcard cho preview: xem **CORS và preview deployment** bên dưới |
 | `STORAGE_DRIVER` | ✅ | `supabase` — để trống/`local` trên Vercel thì app **từ chối khởi động** |
 | `SUPABASE_URL` | ✅ | `https://<project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | service_role / secret key — **chỉ server** (§7) |
@@ -139,8 +153,46 @@ npx prisma studio
 | `DEFAULT_SHIPPING_FEE` | | `30000` |
 | `AGENT_*` | | Chỉ khi dùng multi-model agent (xem `docs/multi-model-agent.md`) |
 
-Không cần đặt: `PORT` (Vercel không dùng `listen`), `VERCEL` (Vercel tự set), `SEED_PASSWORD`,
-`DATABASE_URL_TEST`, `SHADOW_DATABASE_URL`, `UPLOAD_DIR`, `CLOUDINARY_*`.
+Không cần đặt: `PORT` (Vercel không dùng `listen`), `VERCEL` (Vercel tự set), `DIRECT_URL`
+(xem bảng trên), `SEED_PASSWORD`, `DATABASE_URL_TEST`, `SHADOW_DATABASE_URL`, `UPLOAD_DIR`,
+`CLOUDINARY_*`.
+
+> Đã kiểm tra với Prisma 6.19: `prisma generate` chạy được khi thiếu cả `DATABASE_URL` lẫn
+> `DIRECT_URL`, và Prisma Client ở runtime không đòi `DIRECT_URL` (chỉ `migrate`/`db`/`studio`
+> mới dùng `directUrl`). Dù vậy app không phụ thuộc điều đó — `env.js` luôn điền sẵn biến này.
+
+### CORS và preview deployment
+
+Backend bật `credentials: true`, và origin được phép thì đọc được response của API từ trình
+duyệt người dùng. Wildcard phải hẹp tới mức chỉ deployment của bạn khớp.
+
+- `*` chỉ được đặt trong **nhãn đầu tiên** của host và chỉ khớp chữ/số/`-` (không qua `.`,
+  `/`, `:`), nên `https://x.vercel.app.evil.com` hay khác scheme/port đều bị chặn.
+- Preview URL của Vercel có dạng `<project>-<hash>-<team-slug>.vercel.app` (URL theo
+  nhánh: `<project>-git-<branch>-<team-slug>.vercel.app`). Dùng pattern **gắn với team**:
+
+  ```text
+  CORS_ORIGIN=https://perfume-shop.vercel.app,https://perfume-shop-*-<team-slug>.vercel.app
+  ```
+
+  Team slug là duy nhất trên Vercel nên phần đuôi `-<team-slug>` neo pattern vào team của
+  bạn: `https://perfume-shop-x-abc123-evil.vercel.app` (project cùng tên ở team khác) không
+  khớp; `https://evil-x-<team-slug>.vercel.app` (project khác trong team bạn) cũng không
+  khớp vì thiếu prefix `perfume-shop-`.
+- App **từ chối khởi động** (lỗi `Invalid CORS_ORIGIN entry ...`) nếu pattern quá rộng:
+  - `*` chiếm cả nhãn ngay trên hậu tố dùng chung hoặc TLD: `https://*.vercel.app`,
+    `*.netlify.app`, `*.pages.dev`, `*.github.io`, `*.onrender.com`, `https://*.com`, `*`;
+  - prefix-only trên hậu tố dùng chung: `https://perfume-shop-*.vercel.app` — ai đặt tên
+    project `perfume-shop-x` cũng nhận domain `perfume-shop-x.vercel.app` và khớp;
+  - `*` ở scheme/port, ngoài nhãn đầu tiên, hoặc có path.
+
+  Wildcard dưới domain **của riêng bạn** vẫn hợp lệ: `https://*.shop.example.com`,
+  `https://*.<project>.pages.dev`.
+- Pattern gắn team vẫn dựa vào cách Vercel đặt tên domain: về lý thuyết một tài khoản khác
+  có thể đặt tên project kết thúc bằng `-<team-slug>` của bạn để nhận production domain
+  `perfume-shop-…-<team-slug>.vercel.app`. Cần chặt tuyệt đối thì **chỉ liệt kê origin chính
+  xác** (production + custom domain) và không mở CORS cho preview, hoặc trỏ preview vào
+  backend preview/DB riêng.
 
 Đổi env xong phải **Redeploy** — env chỉ được đọc lúc function khởi động.
 
@@ -289,6 +341,14 @@ CORS). Backend cho phép 5 ảnh × 2 MB = 10 MB/request, nên frontend
 (`productImagesApi.upload`) tự chia file thành nhiều request tuần tự, mỗi request ≤ 4 MB
 (`src/utils/uploadBatches.js`). Client khác (Postman, script) gọi thẳng API cũng phải
 tự giữ mỗi request ≤ 4.5 MB.
+
+- **Lỗi giữa chừng:** batch nào lên xong thì ảnh đó đã lưu trên server. Trang Admin bỏ ngay
+  các file của batch thành công khỏi hàng chờ (theo `uid` của AntD, không theo tên file) và
+  báo "Đã lưu X/Y ảnh…" — bấm tải lên lần nữa chỉ gửi phần còn lại, không tạo ảnh trùng.
+- **413 không đọc được từ frontend:** frontend và backend khác origin, mà response 413 của
+  Vercel không có header CORS → trình duyệt chỉ thấy *network error*. Vì vậy request
+  `FormData` mất response được báo "Không gửi được file lên server. Có thể dữ liệu vượt giới
+  hạn dung lượng…" thay vì "mất kết nối" chung chung (`src/api/client.js`).
 
 ---
 
