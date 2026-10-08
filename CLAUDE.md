@@ -11,7 +11,7 @@ Hệ thống quản lý shop nước hoa: website khách hàng + Admin Portal. T
 | Frontend | React (Vite), Ant Design, React Router, Axios, TanStack Query, Context API (auth) |
 | Backend | Node.js, Express, REST, JWT (access + refresh), Prisma |
 | Database | PostgreSQL (Supabase ở production; Docker `postgres:16` ở dev) |
-| Image | Cloudinary |
+| Image | Supabase Storage (Cloudinary driver vẫn còn) |
 | Test | Backend: Jest + Supertest · Frontend: Vitest + React Testing Library |
 
 ---
