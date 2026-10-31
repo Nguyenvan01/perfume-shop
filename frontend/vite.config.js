@@ -35,6 +35,8 @@ export default defineConfig(({ command, mode }) => {
       globals: true,
       setupFiles: './src/test/setup.js',
       css: false,
+      // AntD + jsdom render chậm trên máy yếu; 5s mặc định gây fail ngẫu nhiên.
+      testTimeout: 20000,
     },
   };
 });
