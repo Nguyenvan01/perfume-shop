@@ -16,8 +16,10 @@ export function niceTicks(max, targetCount = 4) {
   const rough = max / targetCount;
   const magnitude = 10 ** Math.floor(Math.log10(rough));
 
-  const step =
+  const niceStep =
     (NICE_STEPS.find((candidate) => candidate * magnitude >= rough) ?? 10) * magnitude;
+  // Dữ liệu biểu đồ là số nguyên (tiền, số đơn): bước < 1 sẽ ra nhãn trùng "0, 0, 1, 1".
+  const step = max >= 1 ? Math.max(niceStep, 1) : niceStep;
 
   const ticks = [];
   for (let value = 0; value <= max + step / 1000; value += step) {
