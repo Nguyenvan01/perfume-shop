@@ -10,6 +10,7 @@ const env = require('../src/config/env');
 const { prisma } = require('../src/config/database');
 const { slugify } = require('../src/utils/slug');
 const { writePlaceholderImage } = require('./placeholderImage');
+const { BRANDS, CATEGORIES, PRODUCTS, buildDescription } = require('./seed-data/catalog');
 
 const RESOURCES = [
   'user',
@@ -50,104 +51,6 @@ function buildPermissionCodes() {
 function isAdminOnly(code) {
   return ADMIN_ONLY_PREFIXES.some((prefix) => code.startsWith(prefix)) || ADMIN_ONLY_CODES.includes(code);
 }
-
-const BRANDS = [
-  { name: 'Dior', description: 'Thương hiệu nước hoa cao cấp đến từ Pháp.' },
-  { name: 'Chanel', description: 'Nhà mốt Pháp với các dòng nước hoa kinh điển.' },
-  { name: 'Versace', description: 'Thương hiệu Ý, hương thơm trẻ trung và nổi bật.' },
-];
-
-const CATEGORIES = [
-  { name: 'Nước hoa nam', description: 'Hương thơm dành cho nam giới.' },
-  { name: 'Nước hoa nữ', description: 'Hương thơm dành cho nữ giới.' },
-  { name: 'Unisex', description: 'Hương thơm dùng được cho cả nam và nữ.' },
-  { name: 'Gift Set', description: 'Bộ quà tặng nhiều sản phẩm.' },
-  { name: 'Mini', description: 'Chai dung tích nhỏ, tiện mang theo.' },
-];
-
-const PRODUCTS = [
-  {
-    name: 'Dior Sauvage Eau de Parfum',
-    brand: 'Dior',
-    category: 'Nước hoa nam',
-    gender: 'MALE',
-    origin: 'Pháp',
-    concentration: 'EDP',
-    fragrance_family: 'Woody Aromatic',
-    description: 'Hương gỗ thơm nam tính với tiêu Sichuan và hoắc hương.',
-    skuPrefix: 'DIOR-SAUV-EDP',
-    variants: [
-      { volume_ml: 30, price: 2150000, stock: 40 },
-      { volume_ml: 60, price: 3250000, stock: 25 },
-      { volume_ml: 100, price: 4150000, sale_price: 3890000, stock: 18 },
-      { volume_ml: 200, price: 6250000, stock: 4 },
-    ],
-  },
-  {
-    name: 'Dior Miss Dior Blooming Bouquet',
-    brand: 'Dior',
-    category: 'Nước hoa nữ',
-    gender: 'FEMALE',
-    origin: 'Pháp',
-    concentration: 'EDT',
-    fragrance_family: 'Floral',
-    description: 'Hương hoa mẫu đơn và hồng Damascus dịu nhẹ.',
-    skuPrefix: 'DIOR-MDBB-EDT',
-    variants: [
-      { volume_ml: 30, price: 1950000, stock: 30 },
-      { volume_ml: 50, price: 2850000, stock: 22 },
-      { volume_ml: 100, price: 4050000, stock: 3 },
-    ],
-  },
-  {
-    name: 'Chanel Bleu de Chanel Eau de Parfum',
-    brand: 'Chanel',
-    category: 'Nước hoa nam',
-    gender: 'MALE',
-    origin: 'Pháp',
-    concentration: 'EDP',
-    fragrance_family: 'Woody Aromatic',
-    description: 'Hương gỗ tuyết tùng kết hợp bạc hà và gừng.',
-    skuPrefix: 'CHANEL-BLEU-EDP',
-    variants: [
-      { volume_ml: 50, price: 3450000, stock: 20 },
-      { volume_ml: 100, price: 4650000, sale_price: 4390000, stock: 15 },
-      { volume_ml: 150, price: 6150000, stock: 5 },
-    ],
-  },
-  {
-    name: 'Chanel Coco Mademoiselle',
-    brand: 'Chanel',
-    category: 'Nước hoa nữ',
-    gender: 'FEMALE',
-    origin: 'Pháp',
-    concentration: 'EDP',
-    fragrance_family: 'Oriental Floral',
-    description: 'Hương cam bergamot, hoa nhài và hoắc hương sang trọng.',
-    skuPrefix: 'CHANEL-COCO-EDP',
-    variants: [
-      { volume_ml: 35, price: 2750000, stock: 26 },
-      { volume_ml: 50, price: 3950000, stock: 14 },
-      { volume_ml: 100, price: 5450000, stock: 2 },
-    ],
-  },
-  {
-    name: 'Versace Eros Eau de Toilette',
-    brand: 'Versace',
-    category: 'Unisex',
-    gender: 'UNISEX',
-    origin: 'Ý',
-    concentration: 'EDT',
-    fragrance_family: 'Aromatic Fougere',
-    description: 'Hương bạc hà, táo xanh và vanilla ngọt ấm.',
-    skuPrefix: 'VERSACE-EROS-EDT',
-    variants: [
-      { volume_ml: 30, price: 1150000, stock: 50 },
-      { volume_ml: 50, price: 1650000, stock: 35 },
-      { volume_ml: 100, price: 2250000, sale_price: 1990000, stock: 28 },
-    ],
-  },
-];
 
 async function seedRolesAndPermissions() {
   const roleDefs = [
@@ -280,7 +183,7 @@ async function seedCatalog(adminUserId) {
         origin: def.origin,
         concentration: def.concentration,
         fragrance_family: def.fragrance_family,
-        description: def.description,
+        description: buildDescription(def),
         deleted_at: null,
       },
       create: {
@@ -292,7 +195,7 @@ async function seedCatalog(adminUserId) {
         origin: def.origin,
         concentration: def.concentration,
         fragrance_family: def.fragrance_family,
-        description: def.description,
+        description: buildDescription(def),
       },
     });
 

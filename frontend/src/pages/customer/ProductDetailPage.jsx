@@ -271,7 +271,7 @@ function ProductDetailContent({
       </Row>
 
       <Card title="Thông tin sản phẩm" style={{ marginTop: 32 }}>
-        <Paragraph>{product.description || 'Chưa có mô tả cho sản phẩm này.'}</Paragraph>
+        <Paragraph style={{ whiteSpace: 'pre-line' }}>{product.description || 'Chưa có mô tả cho sản phẩm này.'}</Paragraph>
 
         <Descriptions
           column={{ xs: 1, sm: 2 }}

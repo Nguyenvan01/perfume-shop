@@ -34,6 +34,11 @@ describe('niceTicks — mốc trục phải là số tròn', () => {
     expect(ticks.every((tick) => String(tick).length < 8)).toBe(true);
   });
 
+  it('số đếm nhỏ (1–3 đơn) → vạch nguyên, không lặp nhãn', () => {
+    expect(niceTicks(1)).toEqual([0, 1]);
+    expect(niceTicks(3)).toEqual([0, 1, 2, 3]);
+  });
+
   it('max = 0 hoặc âm hoặc không phải số → trả thang tối thiểu, không nổ', () => {
     expect(niceTicks(0)).toEqual([0, 1]);
     expect(niceTicks(-5)).toEqual([0, 1]);
