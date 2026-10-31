@@ -769,8 +769,14 @@ Chạy đúng flow CLAUDE.md §9 trên UI thật sau W5 và lại sau W7. Ghi k�
 ```
 PORT=4000
 NODE_ENV=development
-DATABASE_URL="mysql://perfume:perfume@localhost:3307/perfume_shop"
-DATABASE_URL_TEST="mysql://perfume:perfume@localhost:3307/perfume_shop_test"
+# Local (docker compose, port 5434). Không có pooler nên DIRECT_URL = DATABASE_URL.
+DATABASE_URL="postgresql://perfume:perfume@localhost:5434/perfume_shop"
+DIRECT_URL="postgresql://perfume:perfume@localhost:5434/perfume_shop"
+DATABASE_URL_TEST="postgresql://perfume:perfume@localhost:5434/perfume_shop_test"
+# DIRECT_URL_TEST=   # tuỳ chọn; mặc định = DATABASE_URL_TEST
+# Supabase (production):
+# DATABASE_URL="postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+# DIRECT_URL="postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:5432/postgres"
 JWT_ACCESS_SECRET=
 JWT_REFRESH_SECRET=
 JWT_ACCESS_EXPIRES=15m
@@ -792,43 +798,41 @@ VITE_API_BASE_URL=http://localhost:4000/api/v1
 
 ---
 
-### 5.1 `docker-compose.yml` (root) — OD-4
+### 5.1 `docker-compose.yml` (root) — OD-4 (cập nhật 2026-10-08: PostgreSQL)
 
 ```yaml
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: perfume-mysql
+  postgres:
+    image: postgres:16
+    container_name: perfume-postgres
     restart: unless-stopped
-    ports: ["3307:3306"]                 # 3307 để không đụng MySQL Homebrew trên máy
+    ports: ["5434:5432"]                 # 5432 = Postgres Homebrew, 5433 = PostgreSQL 18 (EDB) trên máy dev
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: perfume_shop
-      MYSQL_USER: perfume
-      MYSQL_PASSWORD: perfume
+      POSTGRES_USER: perfume
+      POSTGRES_PASSWORD: perfume
+      POSTGRES_DB: perfume_shop
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./backend/prisma/docker-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "pg_isready -U perfume -d perfume_shop"]
       interval: 5s
-      retries: 10
+      retries: 20
 volumes:
-  mysql_data:
+  postgres_data:
 ```
 
-`backend/prisma/docker-init.sql` tạo DB test và cấp quyền:
+`backend/prisma/docker-init.sql` tạo DB test (`perfume` là superuser trong container nên
+`prisma migrate dev` tự tạo shadow DB tạm — không cần `SHADOW_DATABASE_URL`):
 ```sql
-CREATE DATABASE IF NOT EXISTS perfume_shop_test   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS perfume_shop_shadow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-GRANT ALL PRIVILEGES ON perfume_shop.*        TO 'perfume'@'%';
-GRANT ALL PRIVILEGES ON perfume_shop_test.*   TO 'perfume'@'%';
-GRANT ALL PRIVILEGES ON perfume_shop_shadow.* TO 'perfume'@'%';
-FLUSH PRIVILEGES;
+CREATE DATABASE perfume_shop_test OWNER perfume;
 ```
 
-Lệnh chuẩn: `docker compose up -d` → `cd backend && npx prisma migrate dev` → `npm run seed`.
+Lệnh chuẩn: `docker compose up -d` → `cd backend && npx prisma migrate dev && npm run db:migrate:test` → `npm run seed`.
 Reset sạch: `docker compose down -v && docker compose up -d`.
+
+Production (Supabase): `DATABASE_URL` = pooler transaction mode (port 6543, `?pgbouncer=true&connection_limit=1`),
+`DIRECT_URL` = kết nối direct/session (port 5432) cho `prisma migrate deploy`.
 
 ---
 
@@ -841,7 +845,7 @@ Tất cả Open Decisions đã được chốt. Không còn blocker cho Wave 1.
 | **OD-1** | Vị trí repo | **Giữ nguyên repo hiện tại** — tạo `backend/` + `frontend/` ngay tại root. `MISSION.md`, `docs/`, `package-lock.json` (`vibecoding-erp`), `orca/`, `lessons/`, `learning-records/` thuộc dự án song song → **không đọc, không sửa, không xoá** | `.gitignore` root phải bỏ qua `node_modules`, `.env`, `dist`, `.DS_Store`; không chạy `npm install` ở root (chỉ trong `backend/` và `frontend/`) |
 | **OD-2** | `users` ↔ `customers` | **Một nguồn auth duy nhất**: `users` giữ email/password/status cho cả 3 role; `customers` là profile nghiệp vụ 1-1 cho role CUSTOMER (địa chỉ, `total_orders`, `total_spending`). Schema §1 đã đúng | Register tạo `User` + `Customer` + `Cart` + gán role CUSTOMER trong **1 `$transaction`**. Lock khách hàng = ghi `users.status = LOCKED` |
 | **OD-3** | Lưu refresh token ở FE | **`localStorage`** | `src/api/client.js`: interceptor đọc access token từ memory + localStorage, auto-refresh khi 401, refresh fail → clear + redirect `/login`. Có refresh-token rotation ở BE để giảm rủi ro |
-| **OD-4** | MySQL dev | **Docker Compose** | Thêm `docker-compose.yml` ở root (xem §5.1). MySQL container map ra **port 3307** để không đụng MySQL 9.5 Homebrew đang có trên máy. Container tạo sẵn 2 DB: `perfume_shop` + `perfume_shop_test` |
+| **OD-4** | MySQL dev (→ thay bằng OD-13) | **Docker Compose** | Thêm `docker-compose.yml` ở root (xem §5.1). MySQL container map ra **port 3307** để không đụng MySQL 9.5 Homebrew đang có trên máy. Container tạo sẵn 2 DB: `perfume_shop` + `perfume_shop_test` |
 | **OD-5** | Cloudinary | **W3 dùng local disk storage qua adapter; cắm Cloudinary sau khi có key** | Bắt buộc có `src/utils/storage.service.js` với interface cố định `upload(buffer, filename, folder) → {url, public_id}` / `destroy(public_id)`. Chọn impl theo env `STORAGE_DRIVER=local\|cloudinary`. Driver `local` ghi vào `backend/uploads/` (đã gitignore) và serve qua `express.static('/uploads')`. **Đổi driver không được sửa code module `product-images`** |
 | **OD-6** | Email forgot-password | **Chưa gửi email thật.** `NODE_ENV=development` → trả `reset_token` trong response + log; production → chỉ 200 rỗng | Không thêm dependency SMTP. FE Forgot-password page hiển thị thông báo chung, dev mode cho phép paste token vào Reset page |
 | **OD-7** | Shipping fee | **Phẳng, lấy từ env `DEFAULT_SHIPPING_FEE=30000`** | `/cart/preview` và `/orders` đều trả `shipping_fee` từ env, không hard-code ở FE |
@@ -849,6 +853,7 @@ Tất cả Open Decisions đã được chốt. Không còn blocker cho Wave 1.
 | **OD-9** | Payment online | **Không làm.** Chỉ `COD` / `BANK_TRANSFER`, status cập nhật tay bởi ADMIN/STAFF qua `PATCH /orders/:id/payment` | Không tích hợp cổng thanh toán nào |
 | **OD-10** | Ngôn ngữ UI | **Tiếng Việt toàn bộ UI**; code/identifier/commit message tiếng Anh | Không setup i18n. AntD dùng `locale={viVN}`, format tiền VND, ngày `dd/MM/yyyy` |
 | **OD-11** | Branch strategy | **`main` + `develop` + feature branch**, PR vào `develop`; `develop` → `main` khi qua gate | Codex: `feature/be-<scope>`. Claude: `feature/fe-<scope>`. Không commit trực tiếp `main` |
-| **OD-12** | Deploy | **Chỉ sau W7** | Backend → Render/Railway, Frontend → Vercel, MySQL cloud |
+| **OD-12** | Deploy | **Chỉ sau W7** | ~~Backend → Render/Railway, MySQL cloud~~ → xem OD-13. Frontend → Vercel |
+| **OD-13** | Database production (**2026-10-08**) | **Supabase PostgreSQL. Toàn bộ dự án chuyển MySQL → PostgreSQL, dev = prod** (Docker `postgres:16`, port 5434). Backend → Vercel serverless, ảnh → Supabase Storage | `schema.prisma` provider `postgresql` + `directUrl`; migration MySQL thay bằng migration `init` PostgreSQL mới; raw SQL viết lại cho PG; tìm kiếm `contains` dùng `mode: 'insensitive'` (PG phân biệt hoa/thường) |
 
 Nếu phát sinh quyết định mới trong lúc thi công: agent **dừng và hỏi**, không tự đoán (CLAUDE.md §10.5). Quyết định mới ghi tiếp vào bảng này.

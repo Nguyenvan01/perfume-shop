@@ -1,5 +1,7 @@
 // Perfume Shop Management System — Prisma schema
 // Nguồn sự thật: CLAUDE.md §6/§7 + implementation_plan.md §1
+// Database: PostgreSQL (Supabase ở production). Chuỗi so sánh PHÂN BIỆT hoa/thường —
+// tìm kiếm dùng `mode: 'insensitive'`, khoá unique (email/slug/code) được chuẩn hoá ở tầng validation/service.
 // Quy ước: tiền dùng Decimal(12,2); soft delete qua `deleted_at` cho users/products/brands/categories.
 
 generator client {
@@ -7,10 +9,13 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-  // Prisma Migrate cần DB riêng để diff schema; user `perfume` chỉ có quyền trên DB này.
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime. Supabase: pooler transaction mode (port 6543) + `?pgbouncer=true&connection_limit=1`.
+  url       = env("DATABASE_URL")
+  // Prisma Migrate. Supabase: kết nối direct/session (port 5432). Local docker: = DATABASE_URL.
+  directUrl = env("DIRECT_URL")
+  // Không khai báo shadowDatabaseUrl: `migrate dev` tự tạo shadow DB tạm (user local là superuser);
+  // trên Supabase chỉ chạy `migrate deploy`, không cần shadow DB.
 }
 
 // ─────────────────────────── Enums ───────────────────────────

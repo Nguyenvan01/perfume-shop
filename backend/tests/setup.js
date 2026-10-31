@@ -2,13 +2,13 @@
 
 process.env.NODE_ENV = 'test';
 
-const { prisma } = require('../src/config/database');
+const { prisma, assertTestDatabase } = require('../src/config/database');
 
 /**
- * Thứ tự truncate quan trọng: xoá bảng con trước bảng cha.
+ * Mọi bảng nghiệp vụ (không gồm `_prisma_migrations`).
  * Dùng cho test cần DB sạch; test đọc dữ liệu seed thì không gọi.
  */
-const TABLES_CHILD_FIRST = [
+const TABLES = [
   'promotion_usages',
   'order_details',
   'payments',
@@ -33,12 +33,23 @@ const TABLES_CHILD_FIRST = [
   'users',
 ];
 
+const TRUNCATE_SQL = `TRUNCATE TABLE ${TABLES.map((table) => `"${table}"`).join(', ')} RESTART IDENTITY CASCADE`;
+
+/**
+ * PostgreSQL: một lệnh TRUNCATE cho tất cả bảng — atomic, không cần tắt FK check,
+ * thứ tự bảng không quan trọng. RESTART IDENTITY reset sequence để id bắt đầu lại từ 1.
+ *
+ * Trước khi TRUNCATE, xác nhận server đang kết nối là DB test (`*_test`) — phòng
+ * cấu hình env sai trỏ nhầm sang DB dev/prod. Kiểm tra một lần cho mỗi test file.
+ */
+let verifiedTestDatabase = false;
+
 async function truncateAll() {
-  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
-  for (const table of TABLES_CHILD_FIRST) {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``);
+  if (!verifiedTestDatabase) {
+    await assertTestDatabase(prisma);
+    verifiedTestDatabase = true;
   }
-  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+  await prisma.$executeRawUnsafe(TRUNCATE_SQL);
 }
 
 global.truncateAll = truncateAll;

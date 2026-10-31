@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 const { PRODUCT_INCLUDE } = require('./product.constant');
 
 const notDeleted = { deleted_at: null };
@@ -23,9 +24,9 @@ function buildWhere(filters) {
 
   if (q) {
     where.OR = [
-      { name: { contains: q } },
-      { fragrance_family: { contains: q } },
-      { brand: { name: { contains: q } } },
+      { name: containsInsensitive(q) },
+      { fragrance_family: containsInsensitive(q) },
+      { brand: { name: containsInsensitive(q) } },
     ];
   }
   if (brand_id) where.brand_id = brand_id;
@@ -59,10 +60,14 @@ async function findMany({ filters, skip, take, orderBy }) {
   return { items, total };
 }
 
-/** Nhận id số hoặc slug — contract §2.6 cho phép cả hai. */
+/**
+ * Nhận id số hoặc slug — contract §2.6 cho phép cả hai.
+ * Slug luôn được lưu lowercase (slugify), nên lowercase input để `/products/Dior-Sauvage`
+ * vẫn tìm thấy như trên MySQL (PostgreSQL so sánh phân biệt hoa/thường).
+ */
 function findByIdOrSlug(idOrSlug, { publicOnly } = {}) {
   const asNumber = Number(idOrSlug);
-  const identifier = Number.isInteger(asNumber) && asNumber > 0 ? { id: asNumber } : { slug: String(idOrSlug) };
+  const identifier = Number.isInteger(asNumber) && asNumber > 0 ? { id: asNumber } : { slug: String(idOrSlug).toLowerCase() };
 
   return prisma.product.findFirst({
     where: { ...identifier, ...notDeleted, ...(publicOnly ? { status: 'ACTIVE' } : {}) },
@@ -73,8 +78,12 @@ function findByIdOrSlug(idOrSlug, { publicOnly } = {}) {
 const findBySlug = (slug) =>
   prisma.product.findFirst({ where: { slug, ...notDeleted }, select: { id: true } });
 
+/** `skus` phải ở dạng chuẩn (utils/sku.js) — DB chỉ lưu dạng chuẩn nên so khớp chính xác. */
 const findSkuConflicts = (skus) =>
-  prisma.productVariant.findMany({ where: { sku: { in: skus } }, select: { sku: true } });
+  prisma.productVariant.findMany({
+    where: { sku: { in: skus } },
+    select: { sku: true },
+  });
 
 const findBrandById = (id) => prisma.brand.findFirst({ where: { id, deleted_at: null } });
 

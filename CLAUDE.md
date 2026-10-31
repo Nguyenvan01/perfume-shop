@@ -10,8 +10,8 @@ Hệ thống quản lý shop nước hoa: website khách hàng + Admin Portal. T
 |---|---|
 | Frontend | React (Vite), Ant Design, React Router, Axios, TanStack Query, Context API (auth) |
 | Backend | Node.js, Express, REST, JWT (access + refresh), Prisma |
-| Database | MySQL |
-| Image | Cloudinary |
+| Database | PostgreSQL (Supabase ở production; Docker `postgres:16` ở dev) |
+| Image | Supabase Storage (Cloudinary driver vẫn còn) |
 | Test | Backend: Jest + Supertest · Frontend: Vitest + React Testing Library |
 
 ---
@@ -42,7 +42,7 @@ perfume-shop/
         └── App.jsx
 ```
 
-Modules: `auth, users, roles, products, product-variants, brands, categories, inventory, customers, carts, orders, promotions, reviews, reports`.
+Modules: `auth, users, roles, products, product-variants, brands, categories, inventory, customers, carts, orders, promotions, reviews, reports, agents`.
 
 Mỗi backend module:
 ```text
@@ -107,7 +107,7 @@ Base URL: `/api/v1`. REST: `GET/POST /resources`, `GET/PUT/DELETE /resources/:id
 
 ---
 
-## 6. Database (Prisma, MySQL)
+## 6. Database (Prisma, PostgreSQL / Supabase)
 
 Bảng:
 ```text
@@ -192,7 +192,7 @@ Mỗi milestone là một nhóm ticket độc lập; làm tuần tự vì milest
 
 | # | Milestone | Phạm vi | Definition of Done |
 |---|---|---|---|
-| M1 | Setup | Init BE (Express, env, Prisma, MySQL, error handler, response helper, validation middleware, `GET /api/v1/health`); init FE (Vite, AntD, router, axios instance, 3 layouts) | FE & BE chạy, DB connect, health API OK |
+| M1 | Setup | Init BE (Express, env, Prisma, PostgreSQL, error handler, response helper, validation middleware, `GET /api/v1/health`); init FE (Vite, AntD, router, axios instance, 3 layouts) | FE & BE chạy, DB connect, health API OK |
 | M2 | Schema | Toàn bộ `schema.prisma` + migration + seed (roles, admin, staff, permissions, vài brand/category/product mẫu) | `prisma migrate` + `seed` chạy sạch |
 | M3 | Auth & User | Register, login, logout, refresh token, forgot/reset/change password, profile, user CRUD, role/permission, lock/unlock | Protected route + RBAC đúng 3 role |
 | M4 | Catalog | Brand, Category, Product, Variant CRUD, upload ảnh Cloudinary, search/filter/pagination | Admin quản lý đủ product/brand/category/variant/image |

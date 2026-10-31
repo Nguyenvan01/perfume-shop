@@ -9,12 +9,14 @@ const env = require('../config/env');
  */
 const passthrough = (_req, _res, next) => next();
 
-const createLimiter = ({ windowMs, limit, message }) =>
+/** keyGenerator mặc định của express-rate-limit là IP; truyền vào để giới hạn theo user. */
+const createLimiter = ({ windowMs, limit, message, keyGenerator }) =>
   env.isTest
     ? passthrough
     : rateLimit({
         windowMs,
         limit,
+        ...(keyGenerator && { keyGenerator }),
         standardHeaders: true,
         legacyHeaders: false,
         message: { success: false, message, errors: [] },
@@ -40,4 +42,4 @@ const limitWrites = (req, res, next) =>
     ? writeLimiter(req, res, next)
     : next();
 
-module.exports = { globalLimiter, limitWrites };
+module.exports = { createLimiter, globalLimiter, limitWrites };

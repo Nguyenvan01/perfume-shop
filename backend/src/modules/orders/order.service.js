@@ -5,6 +5,7 @@ const { Prisma } = require('@prisma/client');
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
 const { prisma } = require('../../config/database');
+const { runTransactionWithRetry } = require('../../utils/transaction');
 const { parsePagination, buildPaginatedResult } = require('../../utils/pagination');
 const inventoryService = require('../inventory/inventory.service');
 const promotionService = require('../promotions/promotion.service');
@@ -77,11 +78,20 @@ function toOrderListDTO(order) {
  *   kiểm tra giỏ → kiểm tra lại tồn kho → tạo đơn + chi tiết (snapshot giá)
  *   → trừ kho + ghi SALE → tạo payment → trừ lượt khuyến mãi → xóa giỏ
  * Bất kỳ bước nào fail thì không có gì được ghi: không có đơn mồ côi, kho không lệch.
+ *
+ * Thứ tự khóa (giống mọi luồng khác, chống deadlock): cart → promotion → variants
+ * (id tăng dần). Deadlock/write conflict còn sót → retry có giới hạn, hết lượt → 409.
  */
 async function createOrder(userId, payload) {
   const customer = await cartService.getCustomerOrFail(userId);
 
-  const orderId = await prisma.$transaction(async (tx) => {
+  const orderId = await runTransactionWithRetry(async (tx) => {
+    // Khóa giỏ TRƯỚC khi đọc dòng hàng: hai checkout đồng thời của cùng một giỏ xếp
+    // hàng ở đây; request sau chỉ đọc giỏ khi request trước đã commit (giỏ đã bị xóa)
+    // → "Cart is empty", không tạo đơn thứ hai, không trừ kho hai lần.
+    const lockedCart = await cartRepo.lockCartForUpdate(tx, customer.id);
+    if (!lockedCart) throw AppError.conflict('Cart is empty');
+
     const cart = await cartRepo.findCartWithItems(customer.id, tx);
     if (!cart || cart.items.length === 0) throw AppError.conflict('Cart is empty');
 
@@ -125,6 +135,13 @@ async function createOrder(userId, payload) {
       promotionCode = claimed.promotion.code;
       discount = toDecimal(claimed.discount_amount);
     }
+
+    // Khóa mọi variant theo id tăng dần TRƯỚC khi insert order_details (FK → KEY SHARE)
+    // và trước khi trừ kho — không khóa theo thứ tự dòng giỏ.
+    await inventoryService.lockVariantsInIdOrder(
+      tx,
+      detailRows.map((row) => row.variant_id)
+    );
 
     const shippingFee = toDecimal(env.DEFAULT_SHIPPING_FEE);
     const totalAmount = subtotal.sub(discount).add(shippingFee).toDecimalPlaces(2);
@@ -239,9 +256,16 @@ async function detail(orderId, { userId, isStaff }) {
   return toOrderDTO(order);
 }
 
-/** Cộng lại kho cho mọi dòng của đơn, ghi transaction RETURN. */
+/**
+ * Cộng lại kho cho mọi dòng của đơn, ghi transaction RETURN.
+ * Variant được khóa theo id tăng dần; caller phải khóa promotion trước (releaseForOrder).
+ */
 async function restoreStock(tx, order, userId, reasonLabel) {
   const details = await repo.findDetails(order.id, tx);
+  await inventoryService.lockVariantsInIdOrder(
+    tx,
+    details.map((detail) => detail.variant_id)
+  );
   for (const detail of details) {
     await inventoryService.applyStockMovement(tx, {
       variant_id: detail.variant_id,
@@ -257,9 +281,10 @@ async function restoreStock(tx, order, userId, reasonLabel) {
 /**
  * Đổi trạng thái đơn. Mọi nhánh làm thay đổi kho hoặc số liệu khách đều nằm
  * trong cùng transaction với việc đổi trạng thái.
+ * Hủy / trả hàng khóa theo cùng thứ tự với checkout: promotion → variants (id tăng dần).
  */
 async function changeStatus(orderId, nextStatus, { userId, isStaff, reason, note }) {
-  await prisma.$transaction(async (tx) => {
+  await runTransactionWithRetry(async (tx) => {
     const order = await repo.lockOrderForUpdate(tx, orderId);
     if (!order) throw AppError.notFound('Order not found');
 
@@ -289,8 +314,8 @@ async function changeStatus(orderId, nextStatus, { userId, isStaff, reason, note
 
     if (nextStatus === ORDER_STATUS.CANCELLED) {
       data.cancelled_reason = reason ?? null;
-      await restoreStock(tx, order, userId, 'Hủy');
       await promotionService.releaseForOrder(tx, order);
+      await restoreStock(tx, order, userId, 'Hủy');
       // Chỉ hoàn tiền khi đã thu tiền. Đơn COD chưa thu thì giữ UNPAID —
       // ghi REFUNDED cho đơn chưa trả tiền là sai sổ sách.
       const payment = await tx.payment.findUnique({ where: { order_id: order.id } });
@@ -301,8 +326,8 @@ async function changeStatus(orderId, nextStatus, { userId, isStaff, reason, note
 
     if (nextStatus === ORDER_STATUS.RETURNED) {
       data.cancelled_reason = reason ?? null;
-      await restoreStock(tx, order, userId, 'Trả hàng');
       await promotionService.releaseForOrder(tx, order);
+      await restoreStock(tx, order, userId, 'Trả hàng');
       // Đơn RETURNED đi từ COMPLETED nên tiền đã thu → hoàn lại.
       const payment = await tx.payment.findUnique({ where: { order_id: order.id } });
       if (payment?.status === 'PAID') {

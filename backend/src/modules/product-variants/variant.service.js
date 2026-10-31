@@ -1,6 +1,7 @@
 'use strict';
 
 const AppError = require('../../utils/AppError');
+const { normalizeSku } = require('../../utils/sku');
 const repo = require('./variant.repository');
 
 async function assertProductExists(product_id) {
@@ -20,6 +21,7 @@ async function detail(id) {
   return variant;
 }
 
+/** Chỉ để trả message thân thiện; chống race là việc của UNIQUE(sku) (P2002 → 409). */
 async function assertSkuFree(sku, currentId) {
   const existing = await repo.findBySku(sku);
   if (existing && existing.id !== currentId) throw AppError.conflict('SKU already exists');
@@ -32,7 +34,8 @@ async function assertVolumeFree(product_id, volume_ml, currentId) {
   }
 }
 
-async function create(product_id, payload) {
+async function create(product_id, rawPayload) {
+  const payload = { ...rawPayload, sku: normalizeSku(rawPayload.sku) };
   await assertProductExists(product_id);
   await assertSkuFree(payload.sku);
   await assertVolumeFree(product_id, payload.volume_ml);
@@ -41,7 +44,8 @@ async function create(product_id, payload) {
   return repo.create({ ...payload, product_id });
 }
 
-async function update(id, payload) {
+async function update(id, rawPayload) {
+  const payload = rawPayload.sku ? { ...rawPayload, sku: normalizeSku(rawPayload.sku) } : rawPayload;
   const variant = await detail(id);
 
   if (payload.sku) await assertSkuFree(payload.sku, id);

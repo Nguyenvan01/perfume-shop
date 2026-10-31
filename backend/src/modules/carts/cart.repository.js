@@ -33,6 +33,24 @@ const CART_ITEM_INCLUDE = {
 const findCustomerByUserId = (user_id, client = prisma) =>
   client.customer.findUnique({ where: { user_id } });
 
+/**
+ * Khóa dòng giỏ của khách tới hết transaction (SELECT ... FOR UPDATE).
+ * Checkout và mọi thao tác sửa giỏ đều lấy khóa này TRƯỚC khi đọc dòng hàng, nên hai
+ * checkout đồng thời của cùng một giỏ xếp hàng: request sau thấy giỏ đã bị xóa.
+ * Thứ tự khóa toàn hệ thống: cart → promotion → variants (id tăng dần).
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ */
+async function lockCartForUpdate(tx, customerId) {
+  const rows = await tx.$queryRaw`
+    SELECT id, customer_id
+    FROM carts
+    WHERE customer_id = ${customerId}
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
+}
+
 const findCartWithItems = (customer_id, client = prisma) =>
   client.cart.findUnique({
     where: { customer_id },
@@ -49,8 +67,8 @@ const ensureCart = async (customer_id, client = prisma) => {
   return findCartWithItems(customer_id, client);
 };
 
-const findVariantForCart = (id) =>
-  prisma.productVariant.findUnique({
+const findVariantForCart = (id, client = prisma) =>
+  client.productVariant.findUnique({
     where: { id },
     select: {
       id: true,
@@ -61,23 +79,24 @@ const findVariantForCart = (id) =>
     },
   });
 
-const findItem = (id) => prisma.cartItem.findUnique({ where: { id } });
+const findItem = (id, client = prisma) => client.cartItem.findUnique({ where: { id } });
 
-const findItemByVariant = (cart_id, variant_id) =>
-  prisma.cartItem.findUnique({ where: { cart_id_variant_id: { cart_id, variant_id } } });
+const findItemByVariant = (cart_id, variant_id, client = prisma) =>
+  client.cartItem.findUnique({ where: { cart_id_variant_id: { cart_id, variant_id } } });
 
-const createItem = (data) => prisma.cartItem.create({ data });
+const createItem = (data, client = prisma) => client.cartItem.create({ data });
 
-const updateItemQuantity = (id, quantity) =>
-  prisma.cartItem.update({ where: { id }, data: { quantity } });
+const updateItemQuantity = (id, quantity, client = prisma) =>
+  client.cartItem.update({ where: { id }, data: { quantity } });
 
-const deleteItem = (id) => prisma.cartItem.delete({ where: { id } });
+const deleteItem = (id, client = prisma) => client.cartItem.delete({ where: { id } });
 
 const clearItems = (cart_id, client = prisma) =>
   client.cartItem.deleteMany({ where: { cart_id } });
 
 module.exports = {
   findCustomerByUserId,
+  lockCartForUpdate,
   findCartWithItems,
   ensureCart,
   findVariantForCart,

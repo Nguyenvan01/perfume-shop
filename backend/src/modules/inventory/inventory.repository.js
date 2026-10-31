@@ -2,6 +2,7 @@
 
 const { Prisma } = require('@prisma/client');
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 const env = require('../../config/env');
 
 /**
@@ -20,6 +21,20 @@ async function lockVariantForUpdate(tx, variantId) {
   `;
   return rows[0] ?? null;
 }
+
+/**
+ * Khóa nhiều variant trong MỘT câu, theo id tăng dần (ORDER BY id → Postgres khóa
+ * từng dòng theo đúng thứ tự trả về). `ids` đã được sort/unique ở service.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ */
+const lockVariantsForUpdate = (tx, ids) =>
+  tx.$queryRaw`
+    SELECT id
+    FROM product_variants
+    WHERE id IN (${Prisma.join(ids)})
+    ORDER BY id
+    FOR UPDATE
+  `;
 
 const applyStock = (tx, variantId, newQuantity) =>
   tx.productVariant.update({ where: { id: variantId }, data: { stock_quantity: newQuantity } });
@@ -44,7 +59,7 @@ function buildVariantWhere({ q, brand_id, category_id, low_stock, out_of_stock, 
   const where = { product: { deleted_at: null } };
 
   if (q) {
-    where.OR = [{ sku: { contains: q } }, { product: { name: { contains: q } } }];
+    where.OR = [{ sku: containsInsensitive(q) }, { product: { name: containsInsensitive(q) } }];
   }
   if (brand_id) where.product = { ...where.product, brand_id };
   if (category_id) where.product = { ...where.product, category_id };
@@ -126,7 +141,7 @@ function buildTxnWhere({ variant_id, type, from, to, q }) {
   if (variant_id) where.variant_id = variant_id;
   if (type) where.type = type;
   if (q) {
-    where.variant = { OR: [{ sku: { contains: q } }, { product: { name: { contains: q } } }] };
+    where.variant = { OR: [{ sku: containsInsensitive(q) }, { product: { name: containsInsensitive(q) } }] };
   }
   if (from || to) {
     where.created_at = {};
@@ -163,6 +178,7 @@ const findTransactionsByIds = (ids) =>
 
 module.exports = {
   lockVariantForUpdate,
+  lockVariantsForUpdate,
   applyStock,
   createTransaction,
   findVariants,

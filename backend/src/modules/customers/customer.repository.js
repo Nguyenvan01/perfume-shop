@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 
 const CUSTOMER_SELECT = {
   id: true,
@@ -24,9 +25,9 @@ function buildWhere({ q, status }) {
     where.user = {
       deleted_at: null,
       OR: [
-        { full_name: { contains: q } },
-        { email: { contains: q } },
-        { phone: { contains: q } },
+        { full_name: containsInsensitive(q) },
+        { email: containsInsensitive(q) },
+        { phone: containsInsensitive(q) },
       ],
     };
   }

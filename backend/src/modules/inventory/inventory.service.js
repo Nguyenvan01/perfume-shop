@@ -56,6 +56,24 @@ async function applyStockMovement(tx, { variant_id, type, quantity, delta, refer
   return { transaction, variant, stock_before: stockBefore, stock_after: stockAfter };
 }
 
+/**
+ * Khóa trước mọi variant sắp đổi kho, theo id TĂNG DẦN.
+ *
+ * Thứ tự khóa toàn hệ thống (chống deadlock giữa checkout / hủy / trả / nhập-xuất):
+ *   cart → promotion → variants (id tăng dần)
+ * Luồng nào đổi kho NHIỀU variant phải gọi hàm này trước applyStockMovement
+ * (applyStockMovement khóa lại dòng đã giữ → no-op) và trước khi insert dòng có FK
+ * tới variant (order_details) — insert đó lấy KEY SHARE, sau này nâng lên FOR UPDATE
+ * sẽ deadlock với transaction khác cũng đang giữ KEY SHARE.
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {number[]} variantIds
+ */
+async function lockVariantsInIdOrder(tx, variantIds) {
+  const ids = [...new Set(variantIds)].sort((a, b) => a - b);
+  if (ids.length > 0) await repo.lockVariantsForUpdate(tx, ids);
+}
+
 /** DTO giao dịch kho theo contract §2.9. */
 function toTransactionDTO(txn) {
   return {
@@ -158,6 +176,7 @@ async function createBulkMovement({ type, items, note, userId }) {
   assertUniqueVariants(items);
 
   const transactionIds = await prisma.$transaction(async (tx) => {
+    await lockVariantsInIdOrder(tx, items.map((item) => item.variant_id));
     const ids = [];
     for (const item of items) {
       const { transaction } = await applyStockMovement(tx, {
@@ -218,6 +237,7 @@ async function createAdjustment({ variant_id, new_quantity, note, userId }) {
 
 module.exports = {
   applyStockMovement,
+  lockVariantsInIdOrder,
   toTransactionDTO,
   toStockRowDTO,
   list,

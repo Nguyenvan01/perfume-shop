@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const env = require('./config/env');
 const routes = require('./routes');
 const AppError = require('./utils/AppError');
+const { isOriginAllowed } = require('./utils/corsOrigin');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 const { globalLimiter, limitWrites } = require('./middleware/security.middleware');
 
@@ -24,14 +25,15 @@ app.use(
   })
 );
 
-// Sau proxy (Render/Railway) thì rate limit phải đọc IP thật từ X-Forwarded-For.
-if (env.isProduction) app.set('trust proxy', 1);
+// Sau proxy (Vercel edge) thì rate limit phải đọc IP thật từ X-Forwarded-For.
+// Vercel ghi đè X-Forwarded-For bằng IP client (không nối thêm), nên tin đúng 1 hop.
+if (env.isProduction || env.isVercel) app.set('trust proxy', 1);
 
 app.use(
   cors({
     origin(origin, callback) {
       // Cho phép request không có Origin (Postman, server-to-server, health check).
-      if (!origin || env.CORS_ORIGIN.includes(origin)) return callback(null, true);
+      if (!origin || isOriginAllowed(origin, env.CORS_ORIGIN)) return callback(null, true);
       return callback(AppError.forbidden(`Origin ${origin} is not allowed by CORS`));
     },
     credentials: true,

@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 
 const BRAND_SELECT = {
   id: true,
@@ -17,7 +18,7 @@ const notDeleted = { deleted_at: null };
 
 function buildWhere({ q, status, publicOnly }) {
   const where = { ...notDeleted };
-  if (q) where.name = { contains: q };
+  if (q) where.name = containsInsensitive(q);
   if (status) where.status = status;
   // Khách chỉ thấy brand đang hoạt động; admin thấy tất cả.
   if (publicOnly) where.status = 'ACTIVE';

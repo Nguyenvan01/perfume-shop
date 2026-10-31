@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 
 const PROMOTION_SELECT = {
   id: true,
@@ -37,6 +38,12 @@ async function lockByCodeForUpdate(tx, code) {
   return rows[0] ?? null;
 }
 
+/** Khóa promotion theo id (hủy / trả đơn) — cùng khóa với checkout. */
+async function lockByIdForUpdate(tx, id) {
+  const rows = await tx.$queryRaw`SELECT id FROM promotions WHERE id = ${id} FOR UPDATE`;
+  return rows[0] ?? null;
+}
+
 const findCustomerByUserId = (user_id) => prisma.customer.findUnique({ where: { user_id } });
 
 const countCustomerUsage = (promotion_id, customer_id, client = prisma) =>
@@ -57,7 +64,7 @@ const notDeleted = {};
 
 function buildWhere({ q, status, active_only }, now = new Date()) {
   const where = { ...notDeleted };
-  if (q) where.OR = [{ code: { contains: q } }, { name: { contains: q } }];
+  if (q) where.OR = [{ code: containsInsensitive(q) }, { name: containsInsensitive(q) }];
   if (status) where.status = status;
   // active_only: đang hiệu lực NGAY LÚC NÀY, không chỉ status ACTIVE.
   if (active_only) {
@@ -95,6 +102,7 @@ module.exports = {
   PROMOTION_SELECT,
   findByCode,
   lockByCodeForUpdate,
+  lockByIdForUpdate,
   findCustomerByUserId,
   countCustomerUsage,
   createUsage,

@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/database');
+const { containsInsensitive } = require('../../utils/search');
 const { USER_PUBLIC_SELECT } = require('../auth/auth.constant');
 
 /** Soft delete: mọi query đều loại user đã xóa. */
@@ -10,7 +11,7 @@ function buildWhere({ q, role, status }) {
   const where = { ...notDeleted };
 
   if (q) {
-    where.OR = [{ email: { contains: q } }, { full_name: { contains: q } }, { phone: { contains: q } }];
+    where.OR = [{ email: containsInsensitive(q) }, { full_name: containsInsensitive(q) }, { phone: containsInsensitive(q) }];
   }
   if (status) where.status = status;
   if (role) where.user_roles = { some: { role: { name: role } } };

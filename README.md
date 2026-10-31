@@ -18,7 +18,7 @@ Trọng tâm là **nghiệp vụ quản lý**, không chỉ là website bán hà
 |---|---|
 | Frontend | React (Vite), Ant Design, React Router, Axios, TanStack Query |
 | Backend | Node.js, Express, REST API, JWT (access + refresh), Prisma ORM |
-| Database | MySQL 8.4 (Docker Compose) |
+| Database | PostgreSQL — Supabase (production), `postgres:16` Docker Compose (dev) |
 | Image storage | Local disk adapter → Cloudinary (đổi bằng env, không sửa code) |
 | Test | Backend: Jest + Supertest · Frontend: Vitest + React Testing Library |
 
@@ -38,7 +38,7 @@ Trọng tâm là **nghiệp vụ quản lý**, không chỉ là website bán hà
 └──────┬────────────────┬──────┘
        ▼                ▼
 ┌─────────────┐  ┌─────────────┐
-│   MySQL     │  │ File storage│
+│ PostgreSQL  │  │ File storage│
 └─────────────┘  └─────────────┘
 ```
 
@@ -54,7 +54,7 @@ Cần: Node.js 20+, Docker.
 git clone https://github.com/Nguyenvan01/perfume-shop.git
 cd perfume-shop
 
-# 1. MySQL (tạo sẵn 3 DB: dev / test / shadow, ở port 3307)
+# 1. PostgreSQL (tạo sẵn 2 DB: dev / test, ở port 5434)
 docker compose up -d
 
 # 2. Backend
@@ -63,6 +63,7 @@ cp .env.example .env
 #   điền JWT_ACCESS_SECRET, JWT_REFRESH_SECRET (openssl rand -hex 32) và SEED_PASSWORD
 npm install
 npx prisma migrate dev
+npm run db:migrate:test          # chuẩn bị DB test cho npm test
 npm run seed
 npm run dev                      # http://localhost:4000
 
@@ -146,7 +147,7 @@ perfume-shop/
 │       ├── routes/        router + guard theo role
 │       ├── components/    component dùng chung (QueryBoundary, DataTable…)
 │       └── utils/
-├── docker-compose.yml     MySQL 8.4
+├── docker-compose.yml     PostgreSQL 16 (dev)
 ├── CLAUDE.md              spec: stack, business rules, milestone (nguồn sự thật nghiệp vụ)
 ├── implementation_plan.md Prisma schema, API contract đầy đủ, orchestration wave, test strategy
 └── task.md                checklist theo wave
@@ -164,7 +165,7 @@ perfume-shop/
 | [`docs/test-report.md`](./docs/test-report.md) | Kết quả test, MVP acceptance flow, bất biến dữ liệu |
 | [`docs/api.md`](./docs/api.md) | Bảng tra 94 endpoint: path, quyền, mô tả |
 | [`docs/erd.md`](./docs/erd.md) | ERD + quyết định thiết kế database |
-| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy lên Vercel / Render / MySQL cloud |
+| [`docs/deployment.md`](./docs/deployment.md) | Hướng dẫn deploy: frontend + backend trên Vercel (2 project), DB + ảnh trên Supabase |
 | [`backend/tests/http/api.http`](./backend/tests/http/api.http) | Collection thử API tay (REST Client / Postman) |
 | [`backend/README.md`](./backend/README.md) | Hướng dẫn riêng cho backend |
 

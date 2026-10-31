@@ -260,6 +260,72 @@ describe('TC05 — checkout khi hết hàng', () => {
     expect(variant.stock_quantity).toBe(0);
     await assertStockMatchesHistory();
   });
+
+  it('cùng một giỏ checkout 2 lần đồng thời: đúng một đơn, kho trừ một lần, một bộ SALE', async () => {
+    const product = await createProduct({
+      variants: [
+        { sku: 'DBL-30', volume_ml: 30, price: 300_000, stock: 10 },
+        { sku: 'DBL-100', volume_ml: 100, price: 900_000, stock: 10 },
+      ],
+    });
+    const bySku = Object.fromEntries(product.variants.map((v) => [v.sku, v.id]));
+    // Thêm variant id lớn trước để thứ tự dòng giỏ khác thứ tự id variant.
+    await addToCart(customer, bySku['DBL-100'], 2);
+    await addToCart(customer, bySku['DBL-30'], 1);
+
+    const [a, b] = await Promise.all([
+      request(app).post(api('/orders')).set(customer.authHeader).send(CHECKOUT_PAYLOAD),
+      request(app).post(api('/orders')).set(customer.authHeader).send(CHECKOUT_PAYLOAD),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const loser = a.status === 409 ? a : b;
+    const winner = a.status === 201 ? a : b;
+    expect(loser.body.message).toBe('Cart is empty');
+
+    expect(await prisma.order.count()).toBe(1);
+    const stocks = await prisma.productVariant.findMany({
+      where: { product_id: product.id },
+      select: { sku: true, stock_quantity: true },
+    });
+    expect(Object.fromEntries(stocks.map((v) => [v.sku, v.stock_quantity]))).toEqual({
+      'DBL-30': 9,
+      'DBL-100': 8,
+    });
+
+    const sales = await prisma.inventoryTransaction.findMany({ where: { type: 'SALE' } });
+    expect(sales).toHaveLength(2);
+    expect(sales.every((t) => t.reference === `ORDER:${winner.body.data.id}`)).toBe(true);
+    await assertStockMatchesHistory();
+  });
+
+  it('sửa giỏ trong lúc checkout chờ khóa giỏ: không lỗi, không mất dữ liệu', async () => {
+    const product = await createProduct({
+      variants: [
+        { sku: 'EDIT-30', volume_ml: 30, price: 300_000, stock: 10 },
+        { sku: 'EDIT-50', volume_ml: 50, price: 500_000, stock: 10 },
+      ],
+    });
+    const bySku = Object.fromEntries(product.variants.map((v) => [v.sku, v.id]));
+    await addToCart(customer, bySku['EDIT-30'], 1);
+
+    const [checkout, add] = await Promise.all([
+      request(app).post(api('/orders')).set(customer.authHeader).send(CHECKOUT_PAYLOAD),
+      addToCart(customer, bySku['EDIT-50'], 1),
+    ]);
+
+    expect(checkout.status).toBe(201);
+    expect(add.status).toBe(200);
+
+    // Hai thao tác xếp hàng trên khóa giỏ: EDIT-50 hoặc nằm trong đơn, hoặc còn lại
+    // trong giỏ — không bao giờ bị mất, không bao giờ có ở cả hai nơi.
+    const orderedSkus = checkout.body.data.details.map((d) => d.sku);
+    const cart = await request(app).get(api('/cart')).set(customer.authHeader);
+    const cartSkus = cart.body.data.items.map((i) => i.sku);
+    expect(orderedSkus).toContain('EDIT-30');
+    expect([...orderedSkus, ...cartSkus].sort()).toEqual(['EDIT-30', 'EDIT-50']);
+    await assertStockMatchesHistory();
+  });
 });
 
 describe('TC08 — chuyển trạng thái đơn hàng', () => {
@@ -729,5 +795,69 @@ describe('Checkout có mã khuyến mãi', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.valid).toBe(true);
     expect(Number(res.body.data.discount_amount)).toBe(200_000);
+  });
+});
+
+describe('Đồng thời: hủy đơn và checkout dùng chung promotion + variant', () => {
+  it('không deadlock / 500: thứ tự khóa chung cart → promotion → variants (id tăng dần)', async () => {
+    const promotion = await prisma.promotion.create({
+      data: {
+        code: 'LOCKORDER',
+        name: 'Thứ tự khóa',
+        discount_type: 'FIXED',
+        discount_value: 50_000,
+        start_date: new Date(Date.now() - 86_400_000),
+        end_date: new Date(Date.now() + 86_400_000),
+        usage_limit: 100,
+        per_customer_limit: 1,
+      },
+    });
+    const product = await createProduct({
+      variants: [
+        { sku: 'LOCK-30', volume_ml: 30, price: 300_000, stock: 50 },
+        { sku: 'LOCK-100', volume_ml: 100, price: 900_000, stock: 50 },
+      ],
+    });
+    const [low, high] = product.variants.map((v) => v.id).sort((a, b) => a - b);
+    const withCode = { ...CHECKOUT_PAYLOAD, promotion_code: promotion.code };
+
+    const ROUNDS = 4;
+    for (let round = 0; round < ROUNDS; round += 1) {
+      const buyer = await loginAs('CUSTOMER', { email: `lock-a-${round}@test.local` });
+      const racer = await loginAs('CUSTOMER', { email: `lock-b-${round}@test.local` });
+
+      // Đơn sẽ bị hủy: dòng giỏ theo id tăng dần.
+      await addToCart(buyer, low, 1);
+      await addToCart(buyer, high, 1);
+      const placed = await request(app).post(api('/orders')).set(buyer.authHeader).send(withCode);
+      expect(placed.status).toBe(201);
+
+      // Giỏ của người checkout song song: thứ tự dòng ngược lại.
+      await addToCart(racer, high, 1);
+      await addToCart(racer, low, 1);
+
+      const [cancel, checkout] = await Promise.all([
+        request(app)
+          .patch(api(`/orders/${placed.body.data.id}/cancel`))
+          .set(buyer.authHeader)
+          .send({ reason: 'test đồng thời' }),
+        request(app).post(api('/orders')).set(racer.authHeader).send(withCode),
+      ]);
+
+      expect({ round, cancel: cancel.status, checkout: checkout.status }).toEqual({
+        round,
+        cancel: 200,
+        checkout: 201,
+      });
+    }
+
+    // Mỗi vòng: một đơn bị hủy (nhả lượt + hoàn kho), một đơn còn hiệu lực.
+    const fresh = await prisma.promotion.findUnique({ where: { id: promotion.id } });
+    expect(fresh.used_count).toBe(ROUNDS);
+    expect(await prisma.promotionUsage.count({ where: { promotion_id: promotion.id } })).toBe(ROUNDS);
+
+    const stocks = await prisma.productVariant.findMany({ where: { product_id: product.id } });
+    for (const variant of stocks) expect(variant.stock_quantity).toBe(50 - ROUNDS);
+    await assertStockMatchesHistory();
   });
 });

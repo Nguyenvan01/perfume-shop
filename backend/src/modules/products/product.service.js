@@ -3,6 +3,7 @@
 const AppError = require('../../utils/AppError');
 const { parsePagination, buildPaginatedResult } = require('../../utils/pagination');
 const { generateUniqueSlug } = require('../../utils/slugHelper');
+const { normalizeSku } = require('../../utils/sku');
 const { SORTABLE } = require('./product.constant');
 const repo = require('./product.repository');
 
@@ -98,6 +99,7 @@ async function assertRelations({ brand_id, category_id }) {
 async function assertSkusAvailable(variants) {
   if (!variants?.length) return;
 
+  // SKU đã ở dạng chuẩn (HOA) → so trùng trực tiếp, không phân biệt hoa/thường.
   const skus = variants.map((variant) => variant.sku);
   const duplicatesInPayload = skus.filter((sku, index) => skus.indexOf(sku) !== index);
   if (duplicatesInPayload.length > 0) {
@@ -109,13 +111,15 @@ async function assertSkusAvailable(variants) {
     throw AppError.conflict('Duplicated volume_ml in payload');
   }
 
+  // Chỉ để trả message thân thiện; chống race là việc của UNIQUE(sku) (P2002 → 409).
   const conflicts = await repo.findSkuConflicts(skus);
   if (conflicts.length > 0) {
     throw AppError.conflict(`SKU already exists: ${conflicts.map((c) => c.sku).join(', ')}`);
   }
 }
 
-async function create({ variants, slug, ...payload }) {
+async function create({ variants: rawVariants, slug, ...payload }) {
+  const variants = rawVariants?.map((variant) => ({ ...variant, sku: normalizeSku(variant.sku) }));
   await assertRelations(payload);
   await assertSkusAvailable(variants);
 

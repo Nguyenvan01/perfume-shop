@@ -24,6 +24,10 @@ const findByProduct = (product_id) =>
 
 const findById = (id) => prisma.productVariant.findUnique({ where: { id }, select: VARIANT_SELECT });
 
+/**
+ * `sku` phải ở dạng chuẩn (utils/sku.js). DB chỉ lưu dạng chuẩn nên "abc-1" = "ABC-1"
+ * được chặn bởi chính UNIQUE(sku) — tra cứu chính xác, dùng được unique index.
+ */
 const findBySku = (sku) =>
   prisma.productVariant.findUnique({ where: { sku }, select: { id: true } });
 
